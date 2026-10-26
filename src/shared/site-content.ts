@@ -303,8 +303,12 @@ export const DEFAULT_CONTACT: ContactContent = {
   heading: site.contact.heading,
   intro: site.contact.intro,
   responseNote: site.contact.responseNote,
-  /** Empty until the owner sets it: the shipped value is a placeholder. */
-  email: '',
+  /**
+   * The public contact address — the one visitors may write to, and the only
+   * one that ever appears on a public page. It is deliberately separate from
+   * the owner's private authentication address, which stays in `owner_auth`.
+   */
+  email: 'hemanggupta40863@gmail.com',
   reasons: site.contact.reasons.map((reason) => ({ ...reason })),
 };
 

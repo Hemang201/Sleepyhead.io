@@ -42,15 +42,15 @@ export function EmailCard({ heading = 'Email me directly', body, email }: EmailC
 
       <p className="email-card__address">
         <IconMail size={18} />
-        {placeholder ? 'A public inbox is on the way.' : address}
+        {placeholder ? 'Email is the best way to reach me.' : address}
       </p>
 
-      {/* While no address is published, say so once and point at what does
-          work. This used to explain how to configure the site and mentioned
-          the dashboard, which is owner-facing language on a public page. */}
+      {/* Only reachable if the address is cleared in the dashboard (or is
+          mid-change): the card must never pretend a link works when it does
+          not, and it must never read like an unfinished page. */}
       {placeholder ? (
         <p className="email-card__note">
-          I have not published a public address yet. The social links are the fastest way to reach me.
+          The address is momentarily offline. The profile links below are the quickest way through in the meantime.
         </p>
       ) : null}
 

@@ -144,9 +144,9 @@ describe('contact content', () => {
     expect(validateContact({ email: '' }).errors).toEqual({});
   });
 
-  it('defaults to no address rather than an invented one', () => {
-    expect(DEFAULT_CONTACT.email).toBe('');
-    expect(isEmail(DEFAULT_CONTACT.email)).toBe(false);
+  it('ships the owner’s real public address, not a placeholder', () => {
+    expect(DEFAULT_CONTACT.email).toBe('hemanggupta40863@gmail.com');
+    expect(isEmail(DEFAULT_CONTACT.email)).toBe(true);
   });
 
   it('keeps the public address out of the About document entirely', () => {

@@ -125,11 +125,25 @@ export default function ContactPage() {
                   })}
                 </ul>
               ) : (
-                /* A discreet fallback, deliberately: nothing here explains how the
-                   site is run or where a profile would be configured. */
-                <p style={{ color: 'var(--text-muted)', fontSize: 'var(--step--1)', marginTop: 'var(--space-2)' }}>
-                  Email is the one route I always answer.
-                </p>
+                /* Profiles are published from the dashboard; until one is, the
+                   section still leads somewhere real instead of reading like a
+                   part of the page that failed to load. */
+                <>
+                  <p style={{ color: 'var(--text-muted)', fontSize: 'var(--step--1)', marginTop: 'var(--space-2)' }}>
+                    Profiles appear here as each account goes public. Until then, email is the one route I always
+                    answer.
+                  </p>
+                  {contact.email ? (
+                    <ul className="social-list" style={{ marginTop: 'var(--space-3)' }}>
+                      <li>
+                        <a className="social-link" href={`mailto:${contact.email}`}>
+                          <IconMail size={18} />
+                          {contact.email}
+                        </a>
+                      </li>
+                    </ul>
+                  ) : null}
+                </>
               )}
             </div>
 

@@ -1479,11 +1479,28 @@
   text-transform: uppercase;
 }
 
-/* One column (and the two-column tablet layout) sizes from the window instead:
-   there the headline column is most of the page, so `cqw` would run away. */
+/* One column, and the two-column tablet layout.
+
+   This is measured against the copy column rather than the window, for the same
+   reason the desktop rule is: the subhead above sits in the same column, and a
+   headline that only tracks the viewport ends up under-reading against it on a
+   phone. The column is the honest unit — 13.8cqw keeps `SMALL GAMES.` on one
+   line down to a 320px screen (39.7px there, against a 41.7px fitting limit at
+   that width), reaches ~49px on a 390px phone, and the 4.25rem cap — not the
+   column — is what takes over on a tablet, where the column is the whole page. */
 @media (max-width: 1119px) {
   .hero__title {
-    font-size: clamp(2.4rem, 9vw, 4.25rem);
+    font-size: clamp(2.4rem, 13.8cqw, 4.25rem);
+  }
+}
+
+/* Phones: the subhead and the headline are two different voices set solid
+   against each other at this size, and with the display's 0.93 line-height the
+   headline's line box is shorter than the subhead's — which is what made the
+   pair read as one cramped block. A single step of air separates them. */
+@media (max-width: 639px) {
+  .hero__title {
+    margin-top: var(--space-3);
   }
 }
 
