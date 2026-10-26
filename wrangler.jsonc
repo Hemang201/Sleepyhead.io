@@ -38,12 +38,6 @@
 	// stand-in so the whole suite can run on a machine with no storage account.
 	// Delete this block before `wrangler deploy` in an account that has no R2 — or
 	// leave it, if the bucket exists and you want a bucket to fall back to.
-	"r2_buckets": [
-		{
-			"binding": "FILES",
-			"bucket_name": "hg-arcade-files"
-		}
-	],
 	"vars": {
 		// Public values only. Local overrides live in .dev.vars; the deployed
 		// FREEBUFF_CLIENT_ID / FREEBUFF_ISSUER / APP_ORIGIN are injected on deploy.

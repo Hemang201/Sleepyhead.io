@@ -1,0 +1,55 @@
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "hemang-gupta-arcade",
+	"main": "worker/index.ts",
+	"compatibility_date": "2026-10-01",
+	"compatibility_flags": [
+		"nodejs_compat"
+	],
+	// Everything reaches the Worker first (API, media, auth routes) and the Worker
+	// falls back to the static build. The deployed Worker entrypoint is served the
+	// same way, so local behaviour matches production.
+	"assets": {
+		"directory": "./dist",
+		"binding": "ASSETS",
+		"not_found_handling": "single-page-application",
+		"run_worker_first": true
+	},
+	// Local development uses Miniflare's D1 emulation; the Sites deployer injects
+	// its own isolated database and binding, so this block is what `wrangler dev`
+	// and `wrangler d1 migrations apply --local` read.
+	//
+	// `database_id` is the all-zero placeholder on purpose: an id is only needed to
+	// talk to a real Cloudflare account. For `wrangler deploy` to your own account,
+	// run `npx wrangler d1 create hg-arcade` once and paste the returned id here.
+	// (A second, unrelated `sleepyhead_db` binding used to sit in this list; it
+	// pointed at another project's database with `remote: true`, which is what made
+	// a deploy fail on a database id it could never reach. It is gone.)
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "sleepyhead-db",
+			"database_id": "0dbd22d8-9d65-411b-a11b-78fb1a648301",
+			"migrations_dir": "migrations"
+		}
+	],
+	// Local emulation only. Uploads go to Get Pronto (GETPRONTO_API_KEY), and the
+	// Worker runs without this binding; `wrangler dev` uses it as a filesystem-free
+	// stand-in so the whole suite can run on a machine with no storage account.
+	// Delete this block before `wrangler deploy` in an account that has no R2 — or
+	// leave it, if the bucket exists and you want a bucket to fall back to.
+	"vars": {
+		// Public values only. Local overrides live in .dev.vars; the deployed
+		// FREEBUFF_CLIENT_ID / FREEBUFF_ISSUER / APP_ORIGIN are injected on deploy.
+		//
+		// Nothing secret belongs here. The owner's private authentication address
+		// (OWNER_AUTH_EMAIL), the transactional email API key (RESEND_API_KEY) and
+		// the sender (EMAIL_FROM) are set as Worker secrets — see docs/SECURITY.md
+		// and docs/DEPLOYMENT.md. With no email provider configured, the dashboard
+		// reports "unconfigured" and cannot be unlocked, by design.
+		"EMAIL_APP_NAME": "the arcade dashboard"
+	},
+	"observability": {
+		"enabled": true
+	}
+}
