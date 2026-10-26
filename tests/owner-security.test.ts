@@ -12,6 +12,7 @@ import {
 } from '../src/shared/owner-security';
 import {
   PBKDF2_ITERATIONS,
+  PBKDF2_MAX_ITERATIONS,
   bytesToBase64Url,
   generateCode,
   hashCode,
@@ -111,6 +112,24 @@ describe('password hashing', () => {
 
   it('uses a work factor that is expensive to brute force', () => {
     expect(PBKDF2_ITERATIONS).toBeGreaterThanOrEqual(100_000);
+  });
+
+  /* The Workers runtime refuses PBKDF2 above 100 000 iterations, and that
+     refusal used to escape as an unhandled 500 from owner setup. Nothing this
+     code writes may ask for more than the runtime will do. */
+  it('never asks for more PBKDF2 work than the Workers runtime supports', async () => {
+    expect(PBKDF2_ITERATIONS).toBeLessThanOrEqual(PBKDF2_MAX_ITERATIONS);
+    const stored = await hashPassword('Violet-Lantern-42', 210_000);
+    expect(stored.iterations).toBe(PBKDF2_MAX_ITERATIONS);
+    await expect(verifyPassword('Violet-Lantern-42', stored)).resolves.toBe(true);
+  });
+
+  it('honours the stored work factor and never throws when it is unusable', async () => {
+    const stored = await hashPassword('Violet-Lantern-42', 1000);
+    // A record whose stored factor is not the one it was derived with cannot match.
+    await expect(verifyPassword('Violet-Lantern-42', { ...stored, iterations: 2000 })).resolves.toBe(false);
+    // Above the runtime ceiling this must be a failed check, not a rejection.
+    await expect(verifyPassword('Violet-Lantern-42', { ...stored, iterations: 210_000 })).resolves.toBe(false);
   });
 });
 

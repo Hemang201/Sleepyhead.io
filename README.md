@@ -75,7 +75,7 @@ not from a template. Installed versions were read from this checkout.
 | Database | Cloudflare D1 (SQLite); schema in `migrations/` | via `DB` binding |
 | Image and audio storage | Get Pronto REST API (presign → upload → confirm), called with `fetch`; no SDK dependency | free plan: 5 GB storage, 10 GB/month, 10 MB per file |
 | Static assets | Vite output in `dist/`, served by the Worker through the `ASSETS` binding | — |
-| Authentication | The app's own: login address + password (PBKDF2-SHA256, 210 000 iterations) + a six-digit emailed code, D1-backed sessions in a signed cookie — no third-party identity provider | — |
+| Authentication | The app's own: login address + password (PBKDF2-SHA256, 100 000 iterations) + a six-digit emailed code, D1-backed sessions in a signed cookie — no third-party identity provider | — |
 | Transactional email | Resend REST API called with `fetch` (no SDK dependency), plus a loopback catcher for local development | — |
 | Unit tests | Vitest (`node` environment) | 5.0.5 |
 | Browser checks | `playwright-core` driving an installed Chromium-family browser | 1.64.1 |
@@ -639,7 +639,7 @@ first use (`app_secrets`) and never leaves it. Codes are six digits from
 `crypto.getRandomValues`, stored only as a keyed digest, valid 10 minutes, 5 wrong
 guesses, one request per 60 s and 8 per hour per purpose, with each new code
 superseding the previous challenge. Passwords: ≥ 12 characters with a letter, a
-number and a symbol; PBKDF2-SHA256, 210 000 iterations, random salt. Five wrong
+number and a symbol; PBKDF2-SHA256, 100 000 iterations, random salt. Five wrong
 passwords in fifteen minutes locks password checks for the rest of the window.
 
 **Enforcement.** Every `/api/admin/*` request re-resolves the owner and re-reads

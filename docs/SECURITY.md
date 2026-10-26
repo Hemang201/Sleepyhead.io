@@ -86,8 +86,8 @@ counters survive a reload because they are rows, not memory.
 
 At least 12 characters, with a letter, a number and a symbol; common passwords,
 four-in-a-row repeats, keyboard runs, and anything containing your own address or
-name are refused. Stored as PBKDF2-SHA256, 210 000 iterations, with a random salt
-per password. The password is never emailed, never echoed back, never logged, and
+name are refused. Stored as PBKDF2-SHA256, 100 000 iterations — the most the
+Workers runtime will do — with a random salt per password. The password is never emailed, never echoed back, never logged, and
 never stored in plaintext.
 
 ### Changing the password

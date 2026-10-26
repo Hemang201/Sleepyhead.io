@@ -35,6 +35,7 @@ import {
 import { DEFAULT_CONTACT, isEmail, maskEmail } from '../../src/shared/site-content';
 import { configuredLoginEmail, configuredOtpEmail, seedOtpEmail, setupToken, type OwnerEnv } from './owner';
 import {
+  PBKDF2_ITERATIONS,
   clearCookie,
   generateCode,
   hashCode,
@@ -104,9 +105,9 @@ export function isOtpCode(value: unknown): value is string {
  * same PBKDF2-SHA256 work factor used for newly stored passwords.
  */
 const DUMMY_PASSWORD_HASH = {
-  hash: 'tc9Yu6APMtO3WO9vKNDGj0bkX0BBq_CPy29r2dW5PWc',
-  salt: 'b3duZXItZHVtbXktdjEhAA',
-  iterations: 210_000,
+  hash: 'RyUrtG0vRt4R9OOqNh1jaw0lXbWyCvMwaLRsvn1d5Ok',
+  salt: 'jDdvcSCVdFVxACA3TerBCA',
+  iterations: PBKDF2_ITERATIONS,
 };
 
 export interface SecurityEnv extends EmailEnv, OwnerEnv {
@@ -365,7 +366,7 @@ async function checkPasswordFactor(
   const valid = await verifyPassword(password ?? '', {
     hash: auth.passphrase_hash,
     salt: auth.passphrase_salt,
-    iterations: auth.passphrase_iters ?? 210_000,
+    iterations: auth.passphrase_iters ?? PBKDF2_ITERATIONS,
   });
   if (!valid) {
     await recordSecurityEvent(env.DB, { sub: owner.sub, kind: 'password.attempt', detail: 'failed' });
@@ -769,7 +770,22 @@ export async function startSetup(
 
   await ensureOwnerAuth(env.DB, owner.sub);
   await setOwnerLoginEmail(env.DB, owner.sub, email);
-  await setOwnerPassphrase(env.DB, owner.sub, await hashPassword(input.password));
+
+  /* Hashing runs before the passphrase is written so a runtime that cannot do
+     the work leaves no half-provisioned owner behind. It is still wrapped: an
+     unexpected crypto failure is a recoverable setup error, not a 500 from an
+     unhandled exception. */
+  let passphrase;
+  try {
+    passphrase = await hashPassword(input.password);
+  } catch {
+    return fail(
+      503,
+      'crypto_unavailable',
+      'This runtime could not hash the password, so nothing was saved. Try the setup again.',
+    );
+  }
+  await setOwnerPassphrase(env.DB, owner.sub, passphrase);
 
   // The code goes to the configured private address, never to a value typed into
   // this (still unauthenticated) form.
@@ -848,7 +864,7 @@ export async function changePassword(
   const same = await verifyPassword(input.newPassword ?? '', {
     hash: auth?.passphrase_hash ?? '',
     salt: auth?.passphrase_salt ?? '',
-    iterations: auth?.passphrase_iters ?? 210_000,
+    iterations: auth?.passphrase_iters ?? PBKDF2_ITERATIONS,
   });
   if (same) {
     return fail(422, 'password_unchanged', 'Choose a different password from the current one.', {

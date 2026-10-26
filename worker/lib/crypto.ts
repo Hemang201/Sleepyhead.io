@@ -60,9 +60,29 @@ export async function sha256(value: string): Promise<string> {
 
 /* ------------------------------------------------------------- passphrases */
 
-/** PBKDF2-SHA256 work factor. High enough to be costly offline, fast enough here. */
-export const PBKDF2_ITERATIONS = 210_000;
+/**
+ * The most PBKDF2 work the Workers runtime will do.
+ *
+ * `crypto.subtle.deriveBits` there refuses any count above this with
+ * `NotSupportedError: iteration counts above 100000 are not supported`, which is
+ * not something the surrounding auth code was written to expect — it escaped as
+ * an unhandled 500 from `/api/admin/auth/setup`. Every derivation therefore has
+ * to pass a count this runtime accepts.
+ */
+export const PBKDF2_MAX_ITERATIONS = 100_000;
+
+/** PBKDF2-SHA256 work factor: the runtime ceiling, which is the most it allows. */
+export const PBKDF2_ITERATIONS = PBKDF2_MAX_ITERATIONS;
 const PBKDF2_KEY_BYTES = 32;
+
+/**
+ * Clamps a requested work factor to what this runtime supports, so every hash
+ * this code writes can be verified wherever it is later deployed.
+ */
+function supportedIterations(iterations: number): number {
+  if (!Number.isFinite(iterations) || iterations < 1) return PBKDF2_ITERATIONS;
+  return Math.min(Math.floor(iterations), PBKDF2_MAX_ITERATIONS);
+}
 
 async function derive(password: string, salt: Uint8Array, iterations: number): Promise<string> {
   const key = await crypto.subtle.importKey('raw', encoder.encode(password), 'PBKDF2', false, ['deriveBits']);
@@ -82,16 +102,30 @@ export interface PasswordHash {
 
 export async function hashPassword(password: string, iterations = PBKDF2_ITERATIONS): Promise<PasswordHash> {
   const salt = crypto.getRandomValues(new Uint8Array(16));
+  // The stored count is the count actually used, so the record stays
+  // self-describing for a runtime with a different ceiling.
+  const factor = supportedIterations(iterations);
   return {
-    hash: await derive(password, salt, iterations),
+    hash: await derive(password, salt, factor),
     salt: bytesToBase64Url(salt),
-    iterations,
+    iterations: factor,
   };
 }
 
 export async function verifyPassword(password: string, stored: PasswordHash): Promise<boolean> {
   if (!stored.hash || !stored.salt) return false;
-  const candidate = await derive(password, base64UrlToBytes(stored.salt), stored.iterations || PBKDF2_ITERATIONS);
+  const factor = stored.iterations || PBKDF2_ITERATIONS;
+  const salt = base64UrlToBytes(stored.salt);
+  let candidate: string;
+  try {
+    /* The stored count is honoured, not assumed: a record written by a runtime
+       that allowed a higher factor still verifies wherever that work can be
+       done. Where it cannot — Cloudflare refuses anything above the ceiling —
+       the refusal is a failed check, never an unhandled 500. */
+    candidate = await derive(password, salt, factor);
+  } catch {
+    return false;
+  }
   return timingSafeEqual(candidate, stored.hash);
 }
 
