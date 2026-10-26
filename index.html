@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" content="#202124" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#f7f4e9" media="(prefers-color-scheme: light)" />
+
+    <title>Hemang Gupta — Indie Game Developer &amp; Browser Arcade</title>
+    <meta
+      name="description"
+      content="Independent game developer Hemang Gupta builds small browser games with big ideas: playful mechanics, physics puzzles and interactive experiments you can play instantly."
+    />
+    <meta name="author" content="Hemang Gupta" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+
+    <meta property="og:site_name" content="Hemang Gupta" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Hemang Gupta — Indie Game Developer &amp; Browser Arcade" />
+    <meta
+      property="og:description"
+      content="Small games. Big ideas. Play browser-based puzzle, physics and action games from indie developer Hemang Gupta."
+    />
+    <meta property="og:image" content="/art/social-card.svg" />
+    <meta name="twitter:card" content="summary_large_image" />
+
+    <script>
+      /* Set the theme before first paint so there is no flash of the wrong theme.
+         Same rule as src/lib/theme.ts: an explicit choice wins, otherwise the
+         operating system's preference decides. */
+      (function () {
+        var theme = null;
+        try {
+          var stored = window.localStorage.getItem('hg.theme.v1');
+          if (stored === 'light' || stored === 'dark') theme = stored;
+        } catch (error) {
+          /* Storage can be blocked (private mode, cookie policies). */
+        }
+        if (!theme) {
+          try {
+            theme = window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+          } catch (error) {
+            theme = 'light';
+          }
+        }
+        document.documentElement.dataset.theme = theme;
+      })();
+    </script>
+
+    <script>
+      /* Mark the document as JavaScript-capable before first paint, for the
+         scroll-reveal system only — and only when the visitor has not asked for
+         reduced motion. The hidden state is scoped to `html.js-reveal`, so
+         without this class every element is simply visible.
+
+         The timer is the safety net: if the reveal system never reports in
+         (failed bundle, blocked module, an error before React mounts), the class
+         comes off and nothing can be stranded invisible. */
+      (function () {
+        var reduced = false;
+        try {
+          reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        } catch (error) {
+          /* No matchMedia: show everything as-is. */
+        }
+        if (reduced) return;
+        document.documentElement.classList.add('js-reveal');
+        window.setTimeout(function () {
+          if (!window.__hgReveal) document.documentElement.classList.remove('js-reveal');
+        }, 2500);
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <noscript>
+      <div style="padding: 2rem; font-family: system-ui, sans-serif; color: #f2f2f3; background: #202124">
+        <h1>Hemang Gupta — Indie Game Developer</h1>
+        <p>
+          This arcade needs JavaScript to run the games and the interface. Please enable JavaScript, then reload the
+          page. You can still reach me directly by email.
+        </p>
+      </div>
+    </noscript>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

@@ -1,0 +1,282 @@
+/* ==========================================================================
+   OPENING SEQUENCE
+
+   A full-screen title card shown while the application is genuinely
+   initialising: the catalogue, the editable content and the fonts. It is not a
+   spinner dressed up — it reports the three real things it is waiting for, and
+   the number it shows is that count, never an invented percentage.
+
+   The card is rendered into <body> through a portal, so `#root` can be marked
+   `inert` underneath it: the underlying page is unreachable by mouse, touch and
+   keyboard for the second or so the card is up, and nothing decorative is ever
+   mounted over a running game.
+   ========================================================================== */
+
+.boot {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-boot);
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  gap: clamp(1.5rem, 4vw, 3rem);
+  padding: clamp(1.25rem, 3vw, 2.5rem);
+  overflow: hidden;
+  /* The same paper as the site, with one large flat colour patch — the opening
+     card should look like the cover of the publication, not like a splash
+     screen bolted onto it. */
+  background:
+    radial-gradient(58% 46% at 16% 8%, color-mix(in srgb, var(--scheme-b) 26%, transparent), transparent 72%),
+    radial-gradient(44% 36% at 88% 84%, color-mix(in srgb, var(--scheme-c) 20%, transparent), transparent 74%),
+    var(--bg-deep);
+  color: var(--text);
+  /* The card owns the screen while it is up; nothing scrolls behind it. */
+  overscroll-behavior: contain;
+}
+
+/* Printer's plate mark: a hairline frame inside the screen edge, drawn with a
+   border so it costs nothing. */
+.boot::after {
+  content: '';
+  position: absolute;
+  inset: clamp(10px, 2vw, 22px);
+  border: var(--edge-1) solid var(--ink-faint);
+  pointer-events: none;
+}
+
+/* Dot screen + halftone, drawn as one cheap repeating gradient pair. */
+.boot::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: radial-gradient(var(--dot) 1px, transparent 1.6px),
+    radial-gradient(color-mix(in srgb, var(--scheme-b) 26%, transparent) 2.2px, transparent 2.8px);
+  background-size: 24px 24px, 96px 96px;
+  mask-image: radial-gradient(80% 70% at 50% 40%, #000 20%, transparent 82%);
+  animation: boot-drift 18s linear infinite;
+}
+
+/* One slow drift on the texture only: enough to feel alive, cheap enough to
+   leave running for a second. */
+@keyframes boot-drift {
+  from {
+    background-position: 0 0, 0 0;
+  }
+
+  to {
+    background-position: 260px 260px, 92px 92px;
+  }
+}
+
+.boot__rail {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: var(--space-3);
+  border-bottom: var(--edge-2) solid var(--rule);
+}
+
+.boot__brand {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+  align-items: baseline;
+  font-family: var(--font-mono);
+  font-size: var(--step--2);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--text);
+}
+
+.boot__brand span {
+  color: var(--text-dim);
+}
+
+.boot__center {
+  position: relative;
+  display: grid;
+  align-content: center;
+  gap: clamp(1rem, 3vw, 1.75rem);
+  min-width: 0;
+}
+
+/* The greeting is masked, not merely faded: the word slides up out of a window
+   and the next one follows it, which is what makes the change read as a
+   deliberate cut rather than a flicker. */
+.boot__greet {
+  display: block;
+  overflow: hidden;
+  /* Reserved for the tallest greeting in the set, so the layout never jumps
+     between "Hello" and "नमस्ते". */
+  min-height: 1.24em;
+  /* Fraunces, the editorial serif: the ten greetings are the one moment the
+     site speaks in its printed voice before the layout starts. Browsers fall
+     back per script (see --font-greeting), so CJK and Devanagari still land on
+     a real face. */
+  font-family: var(--font-greeting);
+  font-size: clamp(2.8rem, 2rem + 8vw, 8rem);
+  font-weight: 600;
+  line-height: 1.02;
+  letter-spacing: -0.03em;
+  /* CJK and Devanagari fall back to a system face: the stack has to allow the
+     browser to substitute, so no `font-feature-settings` or optical sizing
+     trickery here. */
+  word-break: keep-all;
+}
+
+.boot__greet-word {
+  display: block;
+  animation: greet-rise var(--dur-greeting) var(--ease-cinematic) both;
+}
+
+@keyframes greet-rise {
+  from {
+    transform: translateY(110%);
+    opacity: 0;
+  }
+
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.boot__tagline {
+  max-width: 34ch;
+  color: var(--text-muted);
+  font-size: var(--step-1);
+}
+
+.boot__progress {
+  display: grid;
+  gap: var(--space-3);
+  max-width: 620px;
+}
+
+/* The real progress bar: an ink-ruled block that fills with flat accent colour.
+   Its width is the count of real steps completed, never a made-up percentage. */
+.boot__bar {
+  position: relative;
+  height: 10px;
+  border: var(--edge-2) solid var(--ink);
+  background: color-mix(in srgb, var(--ink-faint) 40%, transparent);
+  overflow: hidden;
+}
+
+.boot__bar-fill {
+  display: block;
+  height: 100%;
+  background: var(--scheme-a);
+  transform-origin: left center;
+  transition: transform var(--dur-slow) var(--ease-cinematic);
+}
+
+/* A determinate bar with a travelling sheen, so it still reads as "working"
+   during a slow request without lying about how far along it is. */
+.boot__bar-fill::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.35), transparent);
+  animation: boot-sheen 1.4s var(--ease-in-out) infinite;
+}
+
+@keyframes boot-sheen {
+  from {
+    transform: translateX(-100%);
+  }
+
+  to {
+    transform: translateX(100%);
+  }
+}
+
+.boot__status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  align-items: center;
+  justify-content: space-between;
+  font-family: var(--font-mono);
+  font-size: var(--step--2);
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+  text-transform: uppercase;
+}
+
+.boot__foot {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: flex-end;
+  justify-content: space-between;
+  padding-top: var(--space-3);
+  border-top: var(--edge-2) solid var(--rule);
+}
+
+.boot__marks {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+}
+
+/* Geometric accents: an outline circle, an offset square and a cross, drawn
+   with borders so they cost nothing to paint. */
+.boot__shape {
+  display: block;
+  width: 22px;
+  height: 22px;
+  border: var(--edge-2) solid var(--scheme-a);
+}
+
+.boot__shape--circle {
+  border-radius: 50%;
+  border-color: var(--paper-lavender);
+}
+
+.boot__shape--square {
+  border-color: var(--paper-coral);
+  transform: rotate(12deg);
+}
+
+.boot__shape--cross {
+  border: 0;
+  background-image: linear-gradient(var(--paper-sage), var(--paper-sage)),
+    linear-gradient(var(--paper-sage), var(--paper-sage));
+  background-size: 100% var(--edge-2), var(--edge-2) 100%;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+/* The exit: the card wipes up and fades, the bar completes. It is short, and
+   the app underneath is already interactive while it plays (see BootScreen:
+   `inert` is lifted at the start of the exit, not at the end). */
+.boot.is-leaving {
+  pointer-events: none;
+  transition: opacity var(--dur-boot-out) var(--ease-out), transform var(--dur-boot-out) var(--ease-cinematic);
+  opacity: 0;
+  transform: translateY(-1.5%);
+}
+
+.boot.is-leaving .boot__bar-fill {
+  transform: scaleX(1) !important;
+}
+
+@media (max-width: 560px) {
+  .boot {
+    gap: var(--space-5);
+  }
+
+  .boot__greet {
+    font-size: clamp(2.4rem, 14vw, 3.4rem);
+  }
+}
+
+/* Reduced motion still gets the card — it is the app's front door, and a jump
+   cut is fine — but nothing moves: the global reduced-motion rule in base.css
+   neutralises the animation and transition durations, and the greeting is not
+   rotated at all in that mode (see BootScreen). */

@@ -1,0 +1,35 @@
+# Repository metadata and local tooling state
+.git
+.github
+.freebuff
+.wrangler
+.vite
+.cache
+.turbo
+
+# Secrets and local configuration
+.env
+.env.*
+.dev.vars
+.dev.vars.*
+wrangler.local.*
+*.pem
+*.key
+*.crt
+
+# Dependencies and generated artifacts
+node_modules
+dist
+dist-worker
+coverage
+verification
+*.log
+*.pid
+
+# Local databases and editor/OS state
+*.db
+*.sqlite
+*.sqlite3
+.DS_Store
+.idea
+.vscode

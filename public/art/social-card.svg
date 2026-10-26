@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="Hemang Gupta — small games, big ideas">
+  <defs>
+    <linearGradient id="sc-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0b1024" />
+      <stop offset="55%" stop-color="#080b1a" />
+      <stop offset="100%" stop-color="#04060f" />
+    </linearGradient>
+    <linearGradient id="sc-title" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#35e6ff" />
+      <stop offset="50%" stop-color="#a084ff" />
+      <stop offset="100%" stop-color="#ff4d97" />
+    </linearGradient>
+  </defs>
+
+  <rect width="1200" height="630" fill="url(#sc-bg)" />
+  <rect x="2" y="2" width="1196" height="626" fill="none" stroke="#a084ff" stroke-opacity="0.35" stroke-width="4" />
+
+  <g opacity="0.5">
+    <circle cx="1000" cy="150" r="140" fill="none" stroke="#35e6ff" stroke-opacity="0.35" stroke-width="2" stroke-dasharray="10 14" />
+    <circle cx="1000" cy="150" r="92" fill="none" stroke="#a084ff" stroke-opacity="0.4" stroke-width="2" />
+    <path d="M150 520l40 70h-80l40-70Z" fill="none" stroke="#c6ff5e" stroke-opacity="0.5" stroke-width="3" />
+    <rect x="90" y="90" width="70" height="70" rx="18" fill="none" stroke="#ff4d97" stroke-opacity="0.45" stroke-width="3" />
+  </g>
+
+  <g font-family="system-ui, -apple-system, 'Segoe UI', sans-serif">
+    <text x="90" y="230" fill="#eef1ff" font-size="86" font-weight="700" letter-spacing="-3">SMALL GAMES.</text>
+    <text x="90" y="330" fill="url(#sc-title)" font-size="86" font-weight="700" letter-spacing="-3">BIG IDEAS.</text>
+    <text x="90" y="410" fill="#a9b2cf" font-size="34">I build browser games for curious minds.</text>
+    <text x="90" y="500" fill="#7d87a6" font-size="28">Hemang Gupta · independent game developer</text>
+    <text x="90" y="550" fill="#35e6ff" font-size="26" font-weight="600">Instant play · no installs · made with curiosity</text>
+  </g>
+
+  <g transform="translate(940 400) scale(1.9)" fill="none" stroke="#eef1ff" stroke-opacity="0.85" stroke-width="3">
+    <rect x="0" y="0" width="120" height="58" rx="26" />
+    <path d="M32 18v22M21 29h22" stroke-width="4" />
+    <circle cx="86" cy="22" r="6" fill="#c6ff5e" stroke="none" />
+    <circle cx="100" cy="38" r="6" fill="#35e6ff" stroke="none" />
+  </g>
+</svg>

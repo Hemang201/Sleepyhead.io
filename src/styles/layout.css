@@ -1,0 +1,1867 @@
+/* ==========================================================================
+   LAYOUT — page shell, header/nav, hero, sections, grids, footer
+   ========================================================================== */
+
+/*
+ * The page field.
+ *
+ * Three things together decide how wide the site reads: the field may grow to
+ * --container (1800px), the gutters scale with the window (16px on a phone,
+ * 70px on a large desktop), and the content between them is what is left. At
+ * 1440 that is 1296px of content, at 1776 it is 1632px, at 1920 it is 1660px —
+ * a page that uses the screen instead of a column parked in the middle of it.
+ * Nothing below overrides this with a narrower width; individual measures
+ * (paragraphs, prose) cap their own line length instead.
+ */
+.container {
+  width: 100%;
+  max-width: var(--container);
+  margin-inline: auto;
+  padding-inline: clamp(1rem, 4.5vw, 4.375rem);
+}
+
+.container--wide {
+  max-width: var(--container-wide);
+}
+
+.page {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  padding-block: clamp(1.5rem, 4vw, 3rem) var(--space-9);
+}
+
+.section {
+  position: relative;
+  padding-block: clamp(3rem, 7vw, 6rem);
+}
+
+.section--tight {
+  padding-block: clamp(2rem, 5vw, 3.5rem);
+}
+
+/* ==========================================================================
+   EDITORIAL SECTION HEADS
+
+   Every major section is introduced by a hung rail: an oversized outlined
+   section number, a mono coordinate strip, and a hard rule that runs out to
+   the container edge. The number is decorative (aria-hidden in the markup),
+   so the outline can be faint without hurting anyone's reading.
+   ========================================================================== */
+
+.sec-head {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto;
+  gap: var(--space-4) var(--space-6);
+  align-items: end;
+  margin-bottom: clamp(1.75rem, 4vw, 3rem);
+  padding-top: var(--space-5);
+}
+
+.sec-head::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: var(--edge-2);
+  /* The dashed rule takes the band's own accent, so a section announces its
+     colour before any of its content does. */
+  background: repeating-linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--scheme-a) 50%, var(--rule)) 0 14px,
+    transparent 14px 26px
+  );
+}
+
+/* The mono label + mark strip that sits directly on the rule. */
+.sec-head__rail {
+  position: absolute;
+  top: calc(var(--space-5) * -1);
+  left: 0;
+  padding-right: var(--space-3);
+  background: var(--bg);
+  transform: translateY(-50%);
+}
+
+.sec-head__index {
+  /* Hung from the rule, level with the eyebrow: the head reads as "02 — The
+     arcade", not as a caption under the lead paragraph. */
+  align-self: start;
+  margin-top: calc(var(--space-5) * -1 + var(--space-3));
+  font-family: var(--font-display);
+  font-size: clamp(3.5rem, 1.6rem + 7vw, 7.5rem);
+  font-weight: 700;
+  line-height: 0.76;
+  letter-spacing: -0.06em;
+  color: transparent;
+  -webkit-text-stroke: var(--stroke-thick) var(--scheme-edge);
+  user-select: none;
+}
+
+.sec-head__aside {
+  align-self: end;
+}
+
+@supports not (-webkit-text-stroke: 1px red) {
+  .sec-head__index {
+    color: var(--ink-faint);
+  }
+}
+
+.sec-head__body {
+  min-width: 0;
+}
+
+.sec-head__aside {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: center;
+}
+
+@media (min-width: 860px) {
+  .sec-head {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+}
+
+/* Slightly larger section titles — the hierarchy now steps 7 → 5 → 3 → 2 → 0. */
+.section__title {
+  font-size: clamp(2rem, 1.3rem + 2.9vw, 3.4rem);
+}
+
+/* ==========================================================================
+   ASYMMETRIC COMPOSITION
+
+   A 12-column field on wide screens. Bands deliberately give the eye an
+   entry point (a wide left block) and an off-grid counterweight (a narrower
+   right column that starts lower). Below 1000px everything becomes one
+   honest, full-width column — the asymmetry is art direction, not layout.
+   ========================================================================== */
+
+.asym {
+  display: grid;
+  gap: clamp(1.25rem, 3vw, 2.5rem);
+  align-items: start;
+}
+
+@media (min-width: 1000px) {
+  .asym {
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+  }
+
+  .asym__lead {
+    grid-column: 1 / span 7;
+  }
+
+  .asym__side {
+    grid-column: 8 / span 5;
+  }
+
+  .asym__wide {
+    grid-column: 1 / span 8;
+  }
+
+  /* Drops a column by a little, so the composition is off-grid but aligned
+     to the same 12-column field: asymmetry that can still be measured. */
+  .asym__drop {
+    margin-top: clamp(1.5rem, 5vw, 4.5rem);
+  }
+
+  .asym__flush-end {
+    justify-content: flex-end;
+  }
+}
+
+/* A solid graphic block used as a backdrop or counterweight behind content. */
+.edge-block {
+  position: absolute;
+  z-index: -1;
+  pointer-events: none;
+  border: var(--edge-2) solid var(--ink-faint);
+  background: repeating-linear-gradient(-45deg, var(--tex-stripe) 0 2px, transparent 2px 9px);
+}
+
+/* Full-bleed band with hard rules top and bottom, for the CTA/feature strips. */
+.band {
+  position: relative;
+  border-top: var(--edge-2) solid var(--ink-faint);
+  border-bottom: var(--edge-2) solid var(--ink-faint);
+  background: color-mix(in srgb, var(--bg-deep) 70%, transparent);
+}
+
+.band--accent {
+  border-top-color: color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+.section__head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4) var(--space-6);
+  align-items: end;
+  justify-content: space-between;
+  margin-bottom: var(--space-6);
+}
+
+.section__eyebrow,
+.eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-family: var(--font-mono);
+  font-size: var(--step--2);
+  font-weight: 600;
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  /* Role a of the band's scheme: this is text, so every scheme keeps it
+     bright enough to clear AA in both themes (see tokens.css). */
+  color: var(--scheme-a);
+}
+
+/*
+ * Section headings are sentence case, not shouted. The uppercase treatment is
+ * kept for eyebrows, badges and field labels, where a short label benefits from
+ * it — a headline set in caps at this size just loses its shape and its
+ * readability. Tracking tightens as the type grows, which is what makes a
+ * display face read as "designed" rather than merely large.
+ */
+.section__title {
+  margin-top: var(--space-2);
+  font-size: clamp(1.75rem, 1.25rem + 2.3vw, 3rem);
+  font-weight: 700;
+  letter-spacing: var(--tracking-display);
+  text-wrap: balance;
+}
+
+.section__lead {
+  max-width: 56ch;
+  margin-top: var(--space-3);
+  color: var(--text-muted);
+}
+
+.section__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: center;
+}
+
+.grid {
+  display: grid;
+  gap: clamp(1rem, 2vw, 1.5rem);
+}
+
+.grid--games {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 290px), 1fr));
+}
+
+.grid--features {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+}
+
+.split {
+  display: grid;
+  /* One shrinkable column below the breakpoints. An implicit `auto` column
+     takes its minimum from the widest child (a native audio player, a long
+     unbreakable label), which made the whole grid wider than a 320px phone. */
+  grid-template-columns: minmax(0, 1fr);
+  gap: clamp(1.5rem, 4vw, 3.5rem);
+  align-items: start;
+}
+
+@media (min-width: 900px) {
+  .split--about {
+    grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr);
+  }
+  .split--contact {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+  }
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.stack--sm {
+  gap: var(--space-2);
+}
+
+.stack--lg {
+  gap: var(--space-6);
+}
+
+/* These two were referenced by the game detail page but never defined, so the
+   spacing they asked for silently did nothing. */
+.stack--md {
+  gap: var(--space-5);
+}
+
+.stack--xl {
+  gap: var(--space-7);
+}
+
+.cluster {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+/* ---------------------------------------------------------------- header -- */
+
+.site-header {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-header);
+  transition: background-color var(--dur) var(--ease-out), border-color var(--dur) var(--ease-out),
+    box-shadow var(--dur) var(--ease-out);
+  border-bottom: 1px solid transparent;
+}
+
+/*
+ * At the top of the page the header is invisible; once you scroll it becomes a
+ * sheet of the same paper with an ink hairline under it.
+ *
+ * It used to be frosted glass. That is the one place the effect failed: the
+ * bar sits over large display type, so the text behind it showed through as a
+ * grey smudge across the search field — legibility traded for a trend. A solid
+ * sheet with a hard 2px rule is both clearer and more in keeping with the rest
+ * of the site, which uses opaque surfaces and drawn borders, not blur.
+ */
+.site-header[data-scrolled='true'] {
+  border-bottom-color: var(--ink);
+  background: var(--bg);
+}
+
+
+.site-header__inner {
+  display: flex;
+  align-items: center;
+  /* Narrower gutters as the header gets tight, so the actions never push the
+     page wider than the viewport (they did at 320px). */
+  gap: clamp(0.4rem, 1.6vw, 1rem);
+  min-height: var(--header-height);
+}
+
+.wordmark {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-right: 0;
+  color: var(--text);
+  text-decoration: none;
+  /* The brand gives way before the controls do. */
+  min-width: 0;
+}
+
+.wordmark__icon {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border: var(--outline-chunky);
+  border-radius: var(--radius-sm);
+  background: linear-gradient(140deg, color-mix(in srgb, var(--accent) 26%, transparent), transparent 70%);
+  box-shadow: var(--shadow-sm);
+  transition: transform var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
+}
+
+.wordmark:hover .wordmark__icon {
+  transform: rotate(-6deg) scale(1.04);
+  border-color: var(--accent);
+}
+
+.wordmark__text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.1;
+  min-width: 0;
+}
+
+.wordmark__name {
+  font-family: var(--font-display);
+  font-size: var(--step-1);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  /* Truncate rather than wrap: a two-line wordmark would collide with the fixed
+     header height. */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wordmark__role {
+  font-family: var(--font-mono);
+  font-size: var(--step--2);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+/*
+ * The nav sits a measured step after the wordmark rather than being pushed
+ * against the controls: the row reads logo → nav → search, left to right, as in
+ * the reference, and the actions are what absorb the remaining width.
+ */
+.site-nav {
+  display: none;
+  margin-left: clamp(0.75rem, 3.4vw, 3.5rem);
+  margin-right: auto;
+}
+
+@media (min-width: 860px) {
+  .site-nav {
+    display: block;
+  }
+}
+
+.site-nav__list {
+  display: flex;
+  gap: var(--space-1);
+  align-items: center;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Navigation is a row of printed labels: square corners, the graphic face, and
+   a current page marked by a real block of colour rather than a glow. */
+.nav-link {
+  position: relative;
+  display: inline-block;
+  padding: var(--space-2) var(--space-4);
+  border: var(--edge-1) solid transparent;
+  border-radius: var(--radius-edge);
+  color: var(--text-muted);
+  font-family: var(--font-graphic);
+  font-size: var(--step--1);
+  font-weight: 600;
+  text-decoration: none;
+  transition: color var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out),
+    border-color var(--dur-fast) var(--ease-out);
+}
+
+.nav-link:hover {
+  color: var(--text);
+  background: color-mix(in srgb, var(--paper-lavender) 26%, transparent);
+  border-color: var(--ink-faint);
+}
+
+.nav-link[aria-current='page'] {
+  color: var(--text);
+}
+
+.nav-link[aria-current='page']::after {
+  content: '';
+  position: absolute;
+  inset-inline: 0.55rem;
+  bottom: 0.12rem;
+  height: 3px;
+  background: var(--scheme-a);
+  /* The indicator draws itself in from the left instead of appearing whole, so
+     a route change reads as a movement rather than a swap. `both` keeps the
+     end state, because the element only exists while the link is current. */
+  transform-origin: left center;
+  animation: nav-underline var(--dur-slow) var(--ease-cinematic) both;
+}
+
+@keyframes nav-underline {
+  from {
+    transform: scaleX(0);
+  }
+
+  to {
+    transform: scaleX(1);
+  }
+}
+
+/* Icons inside navigation nudge toward their label on hover; the label itself
+   never moves, so the row stays on its baseline. */
+.nav-link svg,
+.header-actions a svg,
+.header-actions button svg {
+  transition: transform var(--dur-fast) var(--ease-snap), color var(--dur-fast) var(--ease-out);
+}
+
+.nav-link:hover svg,
+.header-actions a:hover svg,
+.header-actions button:hover svg {
+  transform: translateY(-1px);
+}
+
+.header-actions {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  /* Never squeezed, never wrapped: these are the navigation controls, and they
+     own the right edge of the bar at every width. */
+  flex: none;
+  margin-left: auto;
+}
+
+@media (max-width: 600px) {
+  .wordmark__role {
+    display: none;
+  }
+
+  /* The shortcut hint is meaningless on a touch device and costs ~50px. */
+  .search-trigger kbd {
+    display: none;
+  }
+
+  .search-trigger {
+    padding-inline: var(--space-3);
+  }
+}
+
+/* On a phone the search lives in the menu, which frees the width the wordmark
+   and the theme control need to stay whole instead of truncating. */
+@media (max-width: 559px) {
+  .header-actions .search-trigger {
+    display: none;
+  }
+}
+
+
+/* Between a phone and a tablet the icon and the full name no longer both fit
+   beside four controls, and the name is the wordmark: the icon steps aside so
+   "Hemang Gupta" is never truncated. */
+@media (max-width: 460px) {
+  .wordmark__icon {
+    display: none;
+  }
+}
+
+/* 320px is the narrowest viewport the site supports: below that the brand stops
+   being a word and becomes the icon. */
+@media (max-width: 360px) {
+  .wordmark__text {
+    display: none;
+  }
+
+  .wordmark__icon {
+    display: grid;
+  }
+}
+
+/* -------------------------------------------------------- mobile menu ---- */
+
+.mobile-menu {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-overlay);
+  display: grid;
+  align-content: start;
+  min-height: 100dvh;
+  height: 100dvh;
+  padding: calc(var(--header-height) + max(var(--space-4), env(safe-area-inset-top)))
+    max(1rem, env(safe-area-inset-right)) calc(var(--space-6) + env(safe-area-inset-bottom))
+    max(1rem, env(safe-area-inset-left));
+  background: color-mix(in srgb, var(--bg) 86%, transparent);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  animation: overlay-in var(--dur) var(--ease-out);
+}
+
+@supports (backdrop-filter: blur(8px)) {
+  .mobile-menu {
+    background: color-mix(in srgb, var(--bg) 72%, transparent);
+    backdrop-filter: blur(var(--blur-heavy));
+  }
+}
+
+@keyframes overlay-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.mobile-menu__list {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-5);
+  padding: 0;
+  list-style: none;
+}
+
+.mobile-menu__link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-4) var(--space-5);
+  border: var(--outline-chunky);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  font-family: var(--font-display);
+  font-size: var(--step-2);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.mobile-menu__link[aria-current='page'] {
+  border-color: var(--ink);
+  background: var(--scheme-b);
+  color: var(--text-on-accent);
+  box-shadow: var(--gouge-sm);
+}
+
+.mobile-menu__footer {
+  display: grid;
+  gap: var(--space-3);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border);
+}
+
+@media (max-width: 859px) {
+  .site-header__inner {
+    min-height: calc(var(--header-height) + env(safe-area-inset-top));
+    padding-top: env(safe-area-inset-top);
+  }
+}
+
+/* ---------------------------------------------------------------- hero ---- */
+
+.hero {
+  position: relative;
+  padding-block: clamp(1.25rem, 2.4vw, 2rem) clamp(2rem, 3.6vw, 3rem);
+}
+
+/*
+ * HERO ENTRANCE
+ *
+ * The headline types itself (TypewriterHeadline), so the rest of the hero
+ * arrives around it in a short, staggered rise: eyebrow, subhead, artwork,
+ * paragraph, actions, colophon, and the two printed cards. Durations are the
+ * site's own `--dur-enter`/`--ease-cinematic`, the whole sequence is over in
+ * well under a second, and nothing is hidden by a script — the animation is
+ * pure CSS with `both` fill, so a failed stylesheet simply leaves the content
+ * visible, and reduced motion collapses it to its finished state (see the
+ * global `prefers-reduced-motion` rule in base.css).
+ */
+.hero__eyebrow,
+.hero__subhead,
+.hero__paragraph,
+.hero__actions,
+.hero__labels,
+.hero__frame,
+.hero__aside {
+  animation: hero-enter var(--dur-enter) var(--ease-cinematic) both;
+  animation-delay: var(--hero-delay, 0ms);
+}
+
+.hero__eyebrow {
+  --hero-delay: 0ms;
+}
+
+.hero__subhead {
+  --hero-delay: 70ms;
+}
+
+.hero__frame {
+  --hero-delay: 120ms;
+  animation-name: hero-enter-art;
+}
+
+.hero__paragraph {
+  --hero-delay: 150ms;
+}
+
+.hero__aside {
+  --hero-delay: 180ms;
+}
+
+.hero__actions {
+  --hero-delay: 220ms;
+}
+
+.hero__labels {
+  --hero-delay: 290ms;
+}
+
+@keyframes hero-enter {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* The artwork gets a fraction more travel and the smallest scale, so it reads as
+   being set down rather than sliding in with the type. */
+@keyframes hero-enter-art {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.hero__subhead {
+  /* The subhead now opens the copy column, so it carries no top margin of its
+     own; the row gap above it is the composition's breathing room. */
+  margin-top: 0;
+  font-family: var(--font-graphic);
+  font-size: var(--step-2);
+  color: var(--text-muted);
+}
+
+.hero__paragraph {
+  margin-top: var(--space-4);
+  max-width: 46ch;
+  color: var(--text-muted);
+  font-size: var(--step-0);
+}
+
+.hero__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-top: var(--space-6);
+}
+
+/* The three promises, set as a printed caption rather than as buttons: one
+   line of mono, separated by interpuncts, the way a colophon reads. */
+.hero__labels {
+  margin: var(--space-5) 0 0;
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  font-size: var(--step--2);
+  letter-spacing: 0.14em;
+  line-height: 1.9;
+  text-transform: uppercase;
+}
+
+/* ==========================================================================
+   THE HERO'S RIGHT COLUMN — two printed cards
+
+   The featured game and what this site is. Both are the same object as every
+   other card on the site (ink frame, hard offset, flat surface); the featured
+   one carries the one coloured tag because it is the thing being pointed at.
+   ========================================================================== */
+
+.hero__aside {
+  display: grid;
+  gap: clamp(1.25rem, 2.4vw, 2rem);
+  align-content: start;
+}
+
+.spotlight-card {
+  position: relative;
+  padding: clamp(1rem, 1.8vw, 1.4rem);
+  border: var(--edge-2) solid var(--ink);
+  border-radius: var(--radius-raw);
+  background: var(--surface-solid);
+  box-shadow: var(--gouge-sm);
+}
+
+.spotlight-card__tag {
+  position: absolute;
+  top: -0.85rem;
+  right: clamp(0.75rem, 1.6vw, 1.25rem);
+  padding: 0.2rem 0.6rem;
+  border: var(--edge-1) solid var(--ink);
+  background: var(--paper-butter);
+  color: var(--text-on-accent);
+  font-family: var(--font-mono);
+  font-size: var(--step--2);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.spotlight-card__label {
+  margin: 0;
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  font-size: var(--step--2);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.spotlight-card__head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 0.82fr);
+  gap: var(--space-3);
+  align-items: start;
+  margin-top: var(--space-2);
+}
+
+.spotlight-card__title {
+  font-family: var(--font-graphic);
+  font-size: var(--step-2);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.05;
+  text-transform: uppercase;
+}
+
+.spotlight-card__art {
+  overflow: hidden;
+  aspect-ratio: 4 / 3;
+  border: var(--edge-1) solid var(--ink-faint);
+  background: var(--bg-deep);
+}
+
+.spotlight-card__art img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.spotlight-card__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.spotlight-card__body {
+  margin: var(--space-3) 0 0;
+  color: var(--text-muted);
+  font-size: var(--step--1);
+}
+
+.spotlight-card__actions {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  margin-top: var(--space-4);
+}
+
+/* The honest status card that stands in for the featured game before the first
+   publish. Same printed object as the cards around it, no fake content. */
+.bench-card {
+  padding: clamp(1rem, 1.8vw, 1.4rem);
+  border: var(--edge-2) solid var(--ink);
+  border-radius: var(--radius-raw);
+  background: var(--surface-solid);
+  box-shadow: var(--gouge-sm);
+}
+
+/* Label and the little drawn cabinet share one line; the mark is decoration, so
+   it never changes the card's height when it is dropped at a narrow width. */
+.bench-card__head {
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.bench-card__mark {
+  display: block;
+  flex: none;
+  margin-top: -2px;
+  color: var(--ink);
+  opacity: 0.85;
+}
+
+.bench-card__mark svg {
+  display: block;
+}
+
+.bench-card__title {
+  margin: var(--space-2) 0 0;
+  font-family: var(--font-graphic);
+  font-size: var(--step-2);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.05;
+  text-transform: uppercase;
+}
+
+.bench-card__body {
+  margin: var(--space-3) 0 0;
+  color: var(--text-muted);
+  font-size: var(--step--1);
+}
+
+.bench-card__status {
+  display: inline-flex;
+  gap: var(--space-2);
+  align-items: center;
+  margin: var(--space-4) 0 0;
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  font-size: var(--step--2);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.bench-card__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--paper-butter);
+}
+
+/* ------------------------------------------------------- about this site */
+
+.site-note {
+  padding: clamp(1rem, 1.8vw, 1.4rem);
+  border: var(--edge-2) solid var(--ink);
+  border-radius: var(--radius-raw);
+  background: var(--surface-solid);
+  box-shadow: var(--gouge-sm);
+}
+
+.site-note__title {
+  margin: 0;
+  font-family: var(--font-graphic);
+  font-size: var(--step-0);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.site-note__body {
+  margin: var(--space-3) 0 0;
+  color: var(--text-muted);
+  font-size: var(--step--1);
+}
+
+.site-note__link {
+  display: inline-flex;
+  gap: var(--space-2);
+  align-items: center;
+  margin-top: var(--space-3);
+  color: var(--scheme-a);
+  font-family: var(--font-mono);
+  font-size: var(--step--2);
+  letter-spacing: 0.14em;
+  text-decoration: none;
+  text-transform: uppercase;
+}
+
+.site-note__link:hover {
+  text-decoration: underline;
+}
+
+.site-note__rule {
+  margin: var(--space-4) 0;
+  border: 0;
+  border-top: var(--edge-1) solid var(--divider);
+}
+
+.site-note__socials {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.social-dot {
+  display: inline-flex;
+  width: 34px;
+  height: 34px;
+  align-items: center;
+  justify-content: center;
+  border: var(--edge-1) solid var(--ink-soft);
+  border-radius: var(--radius-edge);
+  background: var(--bg-deep);
+  color: var(--text);
+  transition: transform var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
+}
+
+.social-dot:hover,
+.social-dot:focus-visible {
+  border-color: var(--ink);
+  transform: translate(-2px, -2px);
+}
+
+.hero__visual {
+  position: relative;
+  min-height: 320px;
+}
+
+.hero__scroll-cue {
+  display: inline-flex;
+  gap: var(--space-2);
+  align-items: center;
+  margin-top: var(--space-8);
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  font-size: var(--step--2);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  text-decoration: none;
+}
+
+.hero__scroll-cue svg {
+  animation: cue-bob 2.6s var(--ease-in-out) infinite;
+}
+
+@keyframes cue-bob {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(5px);
+  }
+}
+
+/* -------------------------------------------------------------- footer ---- */
+
+.site-footer {
+  margin-top: auto;
+  border-top: 1px solid var(--border);
+  /* A hairline of accent light along the top edge is enough of a signature; the
+     footer itself stays quiet so the pages above it end calmly. */
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 6%, transparent), transparent 30%),
+    color-mix(in srgb, var(--bg-deep) 60%, transparent);
+}
+
+.site-footer__grid {
+  display: grid;
+  gap: var(--space-6);
+  padding-block: clamp(2rem, 5vw, 3.5rem);
+}
+
+@media (min-width: 760px) {
+  .site-footer__grid {
+    grid-template-columns: minmax(0, 1.4fr) repeat(2, minmax(0, 0.8fr));
+  }
+}
+
+.site-footer__title {
+  font-family: var(--font-display);
+  font-size: var(--step-2);
+  font-weight: 700;
+}
+
+.site-footer__list {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.site-footer__heading {
+  font-family: var(--font-mono);
+  font-size: var(--step--2);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.site-footer__bottom {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: center;
+  justify-content: space-between;
+  padding-block: var(--space-4);
+  border-top: 1px solid var(--hairline);
+  color: var(--text-dim);
+  font-size: var(--step--1);
+}
+
+/* --------------------------------------------------------------- states --- */
+
+.page-state {
+  display: grid;
+  gap: var(--space-4);
+  justify-items: start;
+  padding: clamp(1.75rem, 4vw, 3rem);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+
+.page-state--center {
+  justify-items: center;
+  text-align: center;
+}
+
+.page-state--error {
+  border-style: solid;
+  border-color: color-mix(in srgb, var(--danger) 45%, var(--border));
+}
+
+.page-state__icon {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border-radius: var(--radius-md);
+  border: var(--outline-chunky);
+  background: var(--surface-strong);
+}
+
+.page-state__title {
+  font-size: var(--step-2);
+}
+
+.page-state__body {
+  color: var(--text-muted);
+}
+
+/*
+ * The empty arcade. A single compact printed panel, not a full-height state:
+ * the portfolio still has to read as a finished page when there is nothing to
+ * play yet. No artwork, no title, no play control.
+ */
+.arcade-empty {
+  display: grid;
+  /* A note, not a banner: 56rem keeps the copy and its mark together instead of
+     stretching a two-line message across a 1776px sheet. */
+  max-width: 56rem;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: clamp(1.25rem, 3vw, 2.25rem);
+  align-items: center;
+  padding: clamp(1.25rem, 2.6vw, 2rem);
+  border: var(--edge-2) solid var(--ink);
+  border-radius: var(--radius-raw);
+  background: var(--surface-solid);
+  box-shadow: var(--gouge-sm);
+}
+
+.arcade-empty__art {
+  display: block;
+  width: clamp(118px, 14vw, 168px);
+  height: auto;
+}
+
+.arcade-empty__copy {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.arcade-empty__eyebrow {
+  margin: 0;
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  font-size: var(--step--2);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.arcade-empty__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--step-2);
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  line-height: 1.05;
+}
+
+.arcade-empty__body {
+  max-width: 46ch;
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--step-0);
+}
+
+/*
+ * On the library the panel is the whole page body, so it takes the container's
+ * width and splits its copy into a two-column note. A 56rem card on a 1440px
+ * sheet left half the page empty, which read as an unfinished layout rather
+ * than as restraint.
+ */
+@media (min-width: 900px) {
+  .arcade-empty--wide {
+    max-width: none;
+  }
+
+  .arcade-empty--wide .arcade-empty__copy {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-items: start;
+    column-gap: clamp(1.5rem, 4vw, 3.5rem);
+  }
+
+  .arcade-empty--wide .arcade-empty__eyebrow {
+    grid-column: 1 / -1;
+  }
+
+  .arcade-empty--wide .arcade-empty__body {
+    align-self: start;
+    padding-top: 0.3em;
+  }
+}
+
+@media (max-width: 560px) {
+  .arcade-empty {
+    grid-template-columns: 1fr;
+    gap: var(--space-4);
+  }
+
+  .arcade-empty__art {
+    width: 112px;
+  }
+}
+
+/* ==========================================================================
+   HERO — ASYMMETRIC EDITORIAL COMPOSITION
+
+   The headline column is deliberately wider than the illustration column, and
+   the illustration is pushed down and given a printed frame with crop marks.
+   A mono coordinate rail sits above the headline and a hard rule closes the
+   band. Everything stays inside the 12-column field, so the asymmetry is
+   designed rather than accidental — and below 1080px it collapses to one
+   honest column with the artwork second.
+   ========================================================================== */
+
+.hero {
+  position: relative;
+  padding-block: clamp(2rem, 5vw, 4rem) clamp(3rem, 7vw, 6rem);
+}
+
+
+.hero__grid {
+  display: grid;
+  gap: clamp(1.75rem, 4vw, 3rem);
+  align-items: start;
+  min-width: 0;
+}
+
+.hero__grid > * {
+  min-width: 0;
+}
+
+/* The headline owns a full-width row of its own; the copy and the artwork share
+   the row beneath it. Two measured lines beat three wrapped ones, and a
+   full-bleed statement over an off-grid pair is the composition the whole
+   design language is built around. */
+/*
+ * THE THREE-COLUMN SPOTLIGHT.
+ *
+ * Left: the statement, the paragraph and the two actions, inside a column
+ *   narrow enough that the headline sits as two measured lines rather than
+ *   stretching across the page.
+ * Middle: one framed piece of real game artwork, standing on offset colour
+ *   blocks, with the hand-written tagline pinned beside it.
+ * Right: two printed cards — the featured game and what this site is, with the
+ *   social row — which is what fills the composition at desktop width instead
+ *   of leaving a void next to the hero copy.
+ *
+ * Below 1120px the three columns become one honest column in reading order.
+ */
+.hero__spotlight {
+  display: grid;
+  gap: clamp(2rem, 4vw, 3rem);
+  align-items: start;
+  min-width: 0;
+}
+
+.hero__spotlight > * {
+  min-width: 0;
+}
+
+/* Tablets and small laptops: two columns for the statement and the artwork, with
+   the two printed cards sharing the row beneath them. Stacking all three this
+   early is what made the hero read as a phone layout on a 1024px screen. */
+@media (min-width: 900px) and (max-width: 1119px) {
+  .hero__spotlight {
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+  }
+
+  .hero__aside {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: clamp(1rem, 2vw, 1.5rem);
+    align-items: start;
+  }
+}
+
+@media (min-width: 1120px) {
+  .hero__spotlight {
+    /* Measured against the reference: the statement column carries the
+       headline, the framed artwork takes the middle step, and the two printed
+       cards on the right end level with the artwork's right edge. */
+    grid-template-columns: minmax(0, 1.39fr) minmax(0, 1fr) minmax(0, 1fr);
+    column-gap: clamp(1.75rem, 3.9vw, 3.5rem);
+    /* Top-aligned, like the reference — and, because the right-hand column
+       fills in when the catalogue arrives, it is also what keeps that arrival
+       from re-centring the other two columns and shifting the page (the layout
+       audit measures the shift). */
+    align-items: start;
+  }
+
+  /* The framed artwork hangs one step below the headline's cap line: the
+     deliberate misalignment is what keeps the row from reading as a table. */
+  .hero__frame {
+    margin-top: clamp(0.5rem, 1.6vw, 1.25rem);
+  }
+
+  /* Top-aligned like the reference: the featured card's lid sits level with
+     the eyebrow, and the sheet below it hangs.
+
+     The reserved floor is a layout-stability device, not a visual one: this
+     column is the tallest of the three and its first card only exists once the
+     catalogue has arrived, so without it the page below the hero jumps down
+     when the fetch lands. The audit measures that jump. */
+  .hero__aside {
+    align-self: start;
+    min-height: 34rem;
+  }
+}
+
+.hero__lead {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+/* The spine: a printed running head in the left margin, rotated like the
+   spine of a book. It is the only thing outside the container, and it is
+   decoration — it never carries information that exists nowhere else. */
+.hero__spine {
+  display: none;
+}
+
+@media (min-width: 1400px) {
+  .hero__spine {
+    position: absolute;
+    top: clamp(5rem, 12vh, 9rem);
+    left: calc(50% - (var(--container) / 2) - 3.25rem);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    align-items: center;
+    color: var(--text-dim);
+    font-family: var(--font-mono);
+    font-size: var(--step--2);
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+  }
+
+  .hero__spine::after {
+    content: '';
+    width: 1px;
+    height: 160px;
+    background: linear-gradient(180deg, var(--divider), transparent);
+  }
+
+  .hero__spine-words {
+    writing-mode: vertical-rl;
+    transform: rotate(180deg);
+    line-height: 2.1;
+  }
+}
+
+.hero__eyebrow {
+  display: inline-flex;
+  gap: var(--space-2);
+  align-items: center;
+  margin-bottom: clamp(0.5rem, 1.1vw, 0.8rem);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--step--1);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.hero__eyebrow::before {
+  content: '//';
+  color: var(--scheme-a);
+  letter-spacing: 0;
+}
+
+/* The foot of the hero: a stamped signature on the left, the scroll cue on the
+   right, separated by the full width of the page. */
+.hero__foot {
+  display: flex;
+  gap: var(--space-4);
+  align-items: flex-end;
+  margin-top: clamp(1.25rem, 2.4vw, 2rem);
+  padding-top: var(--space-4);
+  border-top: var(--edge-1) solid var(--divider);
+}
+
+/* The scroll cue is the last thing on the right of the band, as in the
+   reference; the count sits next to the signature. */
+.hero__foot .hero__scroll-cue {
+  margin: 0 0 0 auto;
+}
+
+.hero__stamp {
+  max-width: 14ch;
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  font-size: var(--step--2);
+  letter-spacing: 0.16em;
+  line-height: 1.5;
+  text-transform: uppercase;
+}
+
+/* The count is a fact, not a signature: it stays on one line, and it reads
+   after the signature rather than across the page from it. */
+.hero__stamp--count {
+  max-width: none;
+  white-space: nowrap;
+}
+
+/* On the narrowest phones the signature, the count and the scroll cue cannot
+   share one line. Let them wrap instead of pushing the cue off the page. */
+@media (max-width: 480px) {
+  .hero__foot {
+    flex-wrap: wrap;
+    row-gap: var(--space-2);
+    align-items: center;
+  }
+
+  .hero__stamp {
+    max-width: 12ch;
+  }
+
+  .hero__stamp--count {
+    white-space: normal;
+  }
+
+  .hero__foot .hero__scroll-cue {
+    margin-left: auto;
+  }
+}
+
+/* ==========================================================================
+   HERO HEADLINE — typed on screen
+
+   The headline is the loudest thing on the site: tight, upper case, in the
+   display face, and typed in character by character on a genuine first load.
+   Three things make that safe rather than gimmicky:
+
+     1. the box is reserved for two lines before a single character is typed,
+        so nothing below it moves while the text arrives;
+     2. the complete headline lives in a visually-hidden span inside the same
+        <h1>, so assistive technology and "find in page" get the finished text
+        immediately and never hear it one letter at a time;
+     3. the visual copy is aria-hidden, so the animation cannot double up the
+        heading for a screen reader.
+   ========================================================================== */
+
+/*
+ * The statement. Heavy grotesque, tight tracking, two lines — the second one
+ * filled with the display gradient.
+ *
+ * The size is measured against the *column*, not the viewport: the reference
+ * sets the whole phrase as two lines beside the artwork, and a viewport-based
+ * size wrapped it into three at exactly the width where the three-column layout
+ * appears. Container units keep it two lines at every width, with the clamp
+ * (and its vw fallback for a browser without container queries) putting a floor
+ * and a ceiling on it.
+ */
+.hero__lead {
+  container-type: inline-size;
+  container-name: hero-lead;
+}
+
+.hero__title {
+  position: relative;
+  font-family: var(--font-graphic);
+  font-size: clamp(2.2rem, 4.6vw, 3.7rem);
+  /* Sized against its own column so the phrase is always exactly two full
+     lines, as in the reference — never three, never a ragged stub. The cap
+     stops that rule from producing a 130px headline on a tablet, where the
+     column is the whole page; on a desktop the column, not the cap, decides. */
+  font-size: clamp(2.4rem, 14.9cqw, 5.75rem);
+  font-weight: 800;
+  line-height: 0.93;
+  letter-spacing: -0.03em;
+  text-transform: uppercase;
+}
+
+/* One column (and the two-column tablet layout) sizes from the window instead:
+   there the headline column is most of the page, so `cqw` would run away. */
+@media (max-width: 1119px) {
+  .hero__title {
+    font-size: clamp(2.4rem, 9vw, 4.25rem);
+  }
+}
+
+/* The finished headline is two lines in the reference. If a browser cannot size
+   it to the column, the lines are allowed to balance rather than leave a stub. */
+.hero__title-line {
+  text-wrap: balance;
+}
+
+.hero__title-accent {
+  color: var(--display-1);
+  background-image: var(--grad-display);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* A browser that cannot clip a gradient to text keeps a solid accent instead of
+   an invisible headline. */
+@supports not ((-webkit-background-clip: text) or (background-clip: text)) {
+  .hero__title-accent {
+    color: var(--display-2);
+    -webkit-text-fill-color: currentColor;
+  }
+}
+
+/* The stage holds the ghost (in flow) and the animated copy (absolutely
+   positioned over it), so the heading's height is decided once, by the finished
+   text, at every viewport width. That is what makes the typing shift-free: the
+   copy grows inside a box that is already the right size, and never pushes the
+   subhead, the buttons or the artwork down the page. */
+.hero__title-stage {
+  position: relative;
+  display: block;
+}
+
+.hero__title-ghost {
+  display: block;
+  visibility: hidden;
+}
+
+.hero__title-visual {
+  position: absolute;
+  inset: 0;
+  display: block;
+  /* Decoration: it cannot be selected, so copying the heading yields the real
+     text once rather than twice. */
+  user-select: none;
+}
+
+.hero__title-line {
+  display: block;
+  min-height: 0.86em;
+  white-space: pre-wrap;
+}
+
+/* The caret is a block, not a text glyph: it cannot be selected, read out, or
+   reflowed into the line box. */
+.hero__title-caret {
+  display: inline-block;
+  width: 0.07em;
+  height: 0.66em;
+  margin-left: 0.04em;
+  background: var(--scheme-a);
+  animation: caret-blink 900ms steps(2, start) infinite;
+}
+
+.hero__title.is-done .hero__title-caret {
+  display: none;
+}
+
+@keyframes caret-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0;
+  }
+}
+
+/* The finish: a scheme-coloured rule draws itself under the completed
+   headline. One gesture, once — it never repeats on scroll. */
+.hero__title-rule {
+  display: block;
+  width: clamp(110px, 28%, 320px);
+  /* In flow, below the stage: its own height is static, so it adds no shift. */
+  height: var(--edge-4);
+  margin-top: var(--space-4);
+  background: var(--scheme-grad);
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform var(--dur-slow) var(--ease-cinematic);
+}
+
+.hero__title.is-done .hero__title-rule {
+  transform: scaleX(1);
+}
+
+/* Reduced motion: the headline is simply there, complete, with no caret and no
+   draw-in. The `is-done` class is applied immediately in that case. */
+@media (prefers-reduced-motion: reduce) {
+  .hero__title-caret {
+    display: none;
+  }
+
+  .hero__title-rule {
+    transform: none;
+  }
+}
+
+.hero__subhead {
+  /* The subhead now opens the copy column, so it carries no top margin of its
+     own; the row gap above it is the composition's breathing room. */
+  margin-top: 0;
+  font-family: var(--font-graphic);
+  font-size: var(--step-2);
+  color: var(--text-muted);
+}
+
+.hero__labels .chip {
+  background: color-mix(in srgb, var(--bg-deep) 60%, transparent);
+}
+
+/*
+ * The framed artwork. A real game image in a printed mount, standing on two
+ * offset colour blocks — a risograph mis-registration rather than a glow. The
+ * tagline is hand-set beside it, as in the reference.
+ */
+.hero__frame {
+  position: relative;
+  margin: 0;
+  padding: clamp(0.6rem, 1.2vw, 0.9rem);
+  border: var(--edge-3) solid var(--ink);
+  border-radius: var(--radius-raw);
+  background: var(--surface-high);
+  box-shadow: var(--gouge);
+  isolation: isolate;
+}
+
+.hero__frame-art {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  aspect-ratio: 4 / 5;
+  background: var(--bg-deep);
+}
+
+.hero__frame-art img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 40%;
+}
+
+.hero__frame-art--empty {
+  display: grid;
+  place-items: center;
+}
+
+.arcade-blueprint {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* Two blocks of flat colour printed slightly out of register behind the
+   mount. They are behind the frame, so nothing depends on them being seen. */
+.hero__frame-block {
+  position: absolute;
+  z-index: -1;
+  display: block;
+  border: var(--edge-1) solid var(--ink-faint);
+}
+
+.hero__frame-block--a {
+  top: -14px;
+  left: -16px;
+  width: 46%;
+  height: 34%;
+  background: var(--paper-sage);
+}
+
+.hero__frame-block--b {
+  right: -18px;
+  bottom: 14%;
+  width: 40%;
+  height: 30%;
+  background: var(--paper-cobalt);
+}
+
+.hero__frame-block--c {
+  bottom: -12px;
+  left: 14%;
+  width: 30%;
+  height: 18%;
+  background: var(--paper-lavender);
+}
+
+/*
+ * Three small marks in the artwork's margin: a star, a dot and a plus. They are
+ * part of the frame rather than the floating layer, so they travel with the
+ * artwork and can never drift over the headline.
+ */
+.hero__frame-marks {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  color: var(--scheme-a);
+}
+
+.hero__frame-mark {
+  position: absolute;
+  display: block;
+  opacity: 0.55;
+}
+
+.hero__frame-mark--star {
+  top: -0.55rem;
+  right: -0.5rem;
+  color: var(--paper-coral);
+  opacity: 0.8;
+}
+
+.hero__frame-mark--dot {
+  bottom: 18%;
+  left: -1.1rem;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--paper-lavender);
+  opacity: 0.7;
+}
+
+.hero__frame-mark--plus {
+  right: -1.2rem;
+  bottom: 8%;
+  color: var(--text-dim);
+  opacity: 0.6;
+}
+
+@media (max-width: 720px) {
+  .hero__frame-mark--plus {
+    display: none;
+  }
+}
+
+/* The hand-written tagline and its arrow, pinned to the right of the mount. */
+/* The hand-written tagline beside the mount, with its arrow pointing down into
+   the artwork. Annotation, not a box: no frame, no fill. */
+.hero__note {
+  position: absolute;
+  top: -2.6rem;
+  right: 0.25rem;
+  margin: 0;
+  padding: 0;
+  color: var(--text-muted);
+  font-family: var(--font-serif);
+  font-size: var(--step--2);
+  font-style: italic;
+  line-height: 1.25;
+  text-align: right;
+}
+
+.hero__note svg {
+  display: block;
+  margin-left: auto;
+  margin-top: 0.15rem;
+  color: var(--text-dim);
+}
+
+@media (max-width: 1119px) {
+  .hero__frame {
+    max-width: 30rem;
+  }
+
+  .hero__note {
+    right: -1.5rem;
+  }
+}
+
+@media (max-width: 720px) {
+  .hero__frame {
+    border-width: var(--edge-2);
+    box-shadow: var(--gouge-sm);
+  }
+
+  .hero__note {
+    position: static;
+    margin-top: var(--space-3);
+  }
+}
+
+/* ----------------------------------------------------------- header ---- */
+
+.nav-link {
+  border-radius: var(--radius-edge);
+  font-size: var(--step--1);
+}
+
+/* The current page is a filled block of the band's fill colour inside an ink
+   frame — the same device as a stamp on a printed page. This block wins over
+   the earlier, quieter rule on purpose: one active treatment, not two. */
+/* The current page is marked by a drawn rule under the word, not by a filled
+   block: in the reference the navigation stays typographic and the only heavy
+   object in the header is the wordmark. */
+.nav-link[aria-current='page'] {
+  color: var(--text);
+}
+
+.nav-link[aria-current='page']::after {
+  inset-inline: 0.5rem;
+  bottom: 0.1rem;
+  height: var(--edge-2);
+  border-radius: 0;
+  background: var(--ink);
+}
+
+.site-header[data-scrolled='true'] {
+  box-shadow: 0 var(--edge-2) 0 0 var(--ink);
+}
+
+/* ----------------------------------------------------------- footer ---- */
+
+.site-footer {
+  position: relative;
+  border-top: var(--edge-3) solid var(--ink);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 7%, transparent), transparent 34%),
+    color-mix(in srgb, var(--bg-deep) 72%, transparent);
+}
+
+.site-footer__grid {
+  gap: clamp(1.75rem, 4vw, 3rem);
+}
+
+.site-footer__title {
+  font-family: var(--font-display);
+  font-size: var(--step-3);
+  font-weight: 700;
+  letter-spacing: var(--tracking-heading);
+}
+
+.site-footer__heading {
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  font-size: var(--step--2);
+  font-weight: 600;
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+}
+
+.site-footer__list a {
+  font-weight: 600;
+}
+
+.site-footer__bottom {
+  gap: var(--space-4);
+  padding-block: var(--space-5);
+  border-top: var(--edge-1) solid var(--hairline);
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  font-size: var(--step--2);
+  letter-spacing: 0.04em;
+}
+
+/* ------------------------------------------------------- page states ---- */
+
+/* Empty/error states are framed blocks too: an intentional page, not a gap. */
+.page-state {
+  border-width: var(--edge-2);
+  border-color: var(--ink-faint);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--bg-deep) 55%, transparent);
+}
+
+.page-state__icon {
+  border-radius: var(--radius-edge);
+  border-width: var(--edge-2);
+  border-color: var(--ink-faint);
+}

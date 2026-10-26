@@ -1,0 +1,571 @@
+/* ==========================================================================
+   DESIGN TOKENS
+
+   The site is one printed object in two lights.
+
+   LIGHT (first visit)  warm uncoated paper (#f7f4e9). This is the primary
+                        design: ink-black type, ink outlines, muted colour blocks.
+   DARK                  a neutral graphite, not-quite-black sheet — the
+                        nighttime edition of the same editorial layout. Never
+                        #000, and never warm or olive: the surfaces sit on the
+                        blue-grey axis (#202124 → #303136) so a full screen
+                        reads as grey rather than as green-tinted charcoal.
+
+   Every component reads these tokens and nothing else, so re-tuning a theme
+   here re-skins the entire site — public pages and dashboard — at once.
+
+   Colour rule, enforced by the two accent sets below:
+
+     - FILLS are pastel (lavender, lilac, sage, butter, coral, pink). They are
+       used as backgrounds, blocks and shapes, always with an ink-black label.
+     - TEXT accents are the matching *-ink values, which all clear AA (4.5:1)
+       on every paper surface. A pastel is never used for small text.
+   ========================================================================== */
+
+:root {
+  color-scheme: dark;
+
+  /* --- paper palette (theme-independent names) ---------------------------
+     The eight colours the whole site is painted from. Declared once, then
+     re-valued per theme where the light/dark version needs a different
+     luminance — the *names* never change at a call site. */
+  --paper-lavender: #bba8f2;
+  --paper-lilac: #cbb9de;
+  --paper-cobalt: #829bd8;
+  --paper-coral: #e58b78;
+  --paper-butter: #e6cb76;
+  --paper-sage: #9cb59a;
+  --paper-terracotta: #dd8a5e;
+  --paper-pink: #eaa1c0;
+
+  /* The text-safe partners. In the dark theme the pastels already pass, so
+     these mirror them; the light theme darkens them substantially. */
+  --paper-lavender-ink: var(--paper-lavender);
+  --paper-lilac-ink: var(--paper-lilac);
+  --paper-cobalt-ink: var(--paper-cobalt);
+  --paper-coral-ink: var(--paper-coral);
+  --paper-butter-ink: var(--paper-butter);
+  --paper-sage-ink: var(--paper-sage);
+  --paper-terracotta-ink: var(--paper-terracotta);
+  --paper-pink-ink: var(--paper-pink);
+
+  /* --- legacy accent names ----------------------------------------------
+     These names are load-bearing across ~110 component rules, so they are
+     kept and re-pointed at the paper palette instead of being renamed. In
+     the dark theme each one is a pastel that clears AA on charcoal. */
+  --neon-cyan: var(--paper-cobalt);
+  --neon-violet: var(--paper-lavender);
+  --neon-pink: var(--paper-pink);
+  --neon-lime: var(--paper-sage);
+  --neon-orange: var(--paper-terracotta);
+  --neon-blue: var(--paper-cobalt);
+  --neon-indigo: var(--paper-lilac);
+  --neon-fuchsia: var(--paper-pink);
+  --neon-coral: var(--paper-coral);
+  --neon-ice: var(--paper-sage);
+
+  /* --- ramps -------------------------------------------------------------
+     Four quiet two-step ramps. They are used for underline rules, the boot
+     bar and outline numerals — never as a full-card wash, because a gradient
+     everywhere is what the neon era did. */
+  --grad-cyan: linear-gradient(96deg, var(--paper-cobalt), var(--paper-lilac));
+  --grad-violet: linear-gradient(96deg, var(--paper-lavender), var(--paper-pink));
+  --grad-magenta: linear-gradient(96deg, var(--paper-pink), var(--paper-coral));
+  --grad-hero: linear-gradient(96deg, var(--paper-cobalt) 8%, var(--paper-lavender) 52%, var(--paper-coral));
+
+  /* --- surfaces (neutral graphite) ---------------------------------------
+     Four steps of genuinely neutral dark grey. The hue is held at the
+     blue-grey axis (blue ≥ green ≥ red, by no more than a few units), which
+     is what stops the sheet reading warm, olive or swampy over a full screen:
+     a red/green-heavy charcoal can look green even when no single element is
+     green. #202124 is the sheet, #292a2d a card lying on it, #303136 a card
+     raised above that, #1b1c1f the secondary paper. Nothing here is pure black.
+     The design audit samples the rendered page and asserts this neutrality. */
+  --bg: #202124;
+  --bg-deep: #1b1c1f;
+  --bg-raise: #292a2d;
+  --layer-1: rgba(41, 42, 45, 0.78);
+  --layer-2: rgba(48, 49, 54, 0.8);
+  --layer-3: rgba(48, 49, 54, 0.94);
+  --surface: var(--layer-1);
+  --surface-strong: var(--layer-3);
+  --surface-solid: #292a2d;
+  --surface-high: #303136;
+  --surface-inverse: #f2f2f3;
+  --overlay: rgba(13, 14, 16, 0.76);
+
+  --border: #45464b;
+  --border-strong: #5c5e64;
+  --divider: #3a3b40;
+  --hairline: rgba(242, 242, 243, 0.14);
+
+  /* --- text -------------------------------------------------------------- */
+  --text: #f2f2f3;
+  --text-muted: #b7b8be;
+  --text-dim: #9a9ba1;
+  --text-on-accent: #1b1c1f;
+
+  /* The two-stop headline gradient. Large type only, so the stops are the one
+     place a saturated accent is allowed: every stop still clears 4.5:1 on the
+     charcoal sheet, which the design audit measures. */
+  --display-1: #8fb0ff;
+  --display-2: #b79cff;
+  --display-3: #ff8fdc;
+  --grad-display: linear-gradient(100deg, var(--display-1) 2%, var(--display-2) 52%, var(--display-3) 100%);
+
+  /* --- section schemes ---------------------------------------------------
+     A band declares three accent roles and every graphic detail inside reads
+     them, so a section changes temperature without a component being
+     re-styled. Role a is used for *text*, so it is always a text-safe value. */
+  --scheme-a: var(--paper-cobalt);
+  --scheme-b: var(--paper-lavender);
+  --scheme-c: var(--paper-coral);
+  --scheme-grad: var(--grad-hero);
+  --scheme-wash: color-mix(in srgb, var(--scheme-b) 10%, transparent);
+  --scheme-edge: color-mix(in srgb, var(--scheme-a) 50%, transparent);
+
+  /* --- accent roles ------------------------------------------------------ */
+  --accent: var(--paper-cobalt);
+  --accent-soft: color-mix(in srgb, var(--paper-cobalt) 16%, transparent);
+  --accent-2: var(--paper-lavender);
+  --accent-3: var(--paper-coral);
+  --success: #9dc08b;
+  --warning: var(--paper-butter);
+  --danger: #e58f86;
+
+  /* --- decoration --------------------------------------------------------
+     Two layers: soft colour fields for depth, and a dot/halftone grid for
+     the printed feel. Both are CSS gradients — no images, no animation. */
+  --deco-1: rgba(185, 167, 230, 0.1);
+  --deco-2: rgba(139, 164, 234, 0.1);
+  --deco-3: rgba(234, 161, 192, 0.07);
+  --grid-line: rgba(244, 240, 230, 0.04);
+  --dot: rgba(242, 242, 243, 0.022);
+  --dot-accent: rgba(139, 164, 234, 0.03);
+  --dot-size: 34px;
+
+  /* --- effects -----------------------------------------------------------
+     Depth is printed, not luminous: hard offset shadows for framed things
+     (see the brutalist layer below) and a soft ink drop for panels that are
+     merely raised. There is no glow anywhere in this system. */
+  --blur-glass: 14px;
+  --blur-heavy: 24px;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.34);
+  --shadow-md: 0 10px 24px -18px rgba(0, 0, 0, 0.7);
+  --shadow-lg: 0 24px 50px -30px rgba(0, 0, 0, 0.78);
+  --shadow-pop: 0 14px 30px -20px rgba(0, 0, 0, 0.72);
+  --outline-chunky: 2px solid var(--border-strong);
+  --focus-ring: 0 0 0 3px var(--bg), 0 0 0 5px var(--paper-cobalt);
+  /* The two places the old system used a glow now use a hard print shadow in
+     the accent colour instead. */
+  --glow-cyan: 4px 4px 0 var(--paper-cobalt);
+  --glow-pink: 4px 4px 0 var(--paper-pink);
+  --glow-violet: 4px 4px 0 var(--paper-lavender);
+  --shadow-card: 0 1px 0 rgba(242, 242, 243, 0.05) inset, 0 16px 34px -26px rgba(0, 0, 0, 0.72);
+  --shadow-hover: 0 22px 46px -30px rgba(0, 0, 0, 0.8);
+  --ring-accent: 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent);
+
+  /* --- typography --------------------------------------------------------
+     Four tiers with one job each:
+       display  Syne — wide geometric headlines, page titles, game titles.
+       serif    Fraunces — the editorial voice: expressive phrases, pull
+                quotes, the second half of the hero headline. Italic by default
+                in the places it is used for emphasis.
+       graphic  Space Grotesk — sub-heads, nav, labels, buttons.
+       body     Inter — paragraphs, forms, metadata.
+     Mono is reserved for version numbers, coordinates and status stamps. */
+  --font-display: 'Syne Variable', 'Syne', 'Space Grotesk Variable', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-serif: 'Fraunces Variable', 'Fraunces', 'Iowan Old Style', 'Palatino Linotype', Georgia, 'Times New Roman',
+    serif;
+  --font-graphic: 'Space Grotesk Variable', 'Space Grotesk', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-body: 'Inter Variable', 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: ui-monospace, 'SFMono-Regular', 'JetBrains Mono', Menlo, monospace;
+  /* Greetings in the boot screen include CJK and Devanagari: the stack names a
+     capable fallback per script so the OS picks a real face instead of tofu. */
+  --font-greeting: 'Fraunces Variable', 'Fraunces', 'Syne Variable', 'Syne', 'Space Grotesk Variable', system-ui,
+    'Segoe UI', 'Noto Sans JP', 'Hiragino Kaku Gothic ProN', 'Malgun Gothic', 'Microsoft YaHei', 'Noto Sans Devanagari',
+    serif;
+
+  /* Display sizes stay generous; the paper layout can afford them because the
+     texture and the frames do the decorating instead. */
+  --step--2: clamp(0.72rem, 0.7rem + 0.1vw, 0.78rem);
+  --step--1: clamp(0.8rem, 0.77rem + 0.15vw, 0.88rem);
+  --step-0: clamp(0.95rem, 0.92rem + 0.2vw, 1.05rem);
+  --step-1: clamp(1.1rem, 1.03rem + 0.35vw, 1.28rem);
+  --step-2: clamp(1.35rem, 1.2rem + 0.7vw, 1.7rem);
+  --step-3: clamp(1.7rem, 1.4rem + 1.4vw, 2.4rem);
+  --step-4: clamp(2.1rem, 1.6rem + 2.4vw, 3.4rem);
+  --step-5: clamp(2.6rem, 1.8rem + 4vw, 5rem);
+  --step-6: clamp(3.1rem, 1.9rem + 6.2vw, 7rem);
+
+  --tracking-display: -0.038em;
+  --tracking-heading: -0.022em;
+  --tracking-label: 0.16em;
+
+  --leading-tight: 0.98;
+  --leading-snug: 1.2;
+  --leading-body: 1.65;
+
+  /* --- space scale ------------------------------------------------------ */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --space-7: 2.75rem;
+  --space-8: 4rem;
+  --space-9: 5.5rem;
+  --space-10: 7.5rem;
+
+  /* --- radii ------------------------------------------------------------
+     Two families, mixed deliberately: square/raw for graphic blocks and
+     frames, refined for anything typed into. --radius-block is the new
+     square corner used on selected panels. */
+  --radius-xs: 6px;
+  --radius-sm: 10px;
+  --radius-md: 16px;
+  --radius-lg: 24px;
+  --radius-xl: 34px;
+  --radius-pill: 999px;
+  --radius-blob: 42% 58% 55% 45% / 48% 42% 58% 52%;
+
+  /* --- layout ----------------------------------------------------------- */
+  /* The content field is a proportion of the viewport, not a fixed column: the
+     reference occupies ~86 % of its width, and a page that stays 1310px wide on
+     a 1776px screen reads as a narrow column floating in space. The cap only
+     binds past 1870px, so at every tested desktop width the field is 90–92 % of
+     the window and the gutters do the rest (see `.container`). */
+  --container: 1840px;
+  --container-wide: 2080px;
+  --header-height: 72px;
+  --measure: 68ch;
+  --measure-tight: 52ch;
+
+  /* --- motion ----------------------------------------------------------- */
+  --ease-out: cubic-bezier(0.22, 0.8, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.6, 0.05, 0.3, 1);
+  --ease-snap: cubic-bezier(0.2, 0.9, 0.2, 1);
+  --ease-cinematic: cubic-bezier(0.16, 1, 0.3, 1);
+  --dur-instant: 90ms;
+  --dur-fast: 150ms;
+  --dur: 240ms;
+  --dur-slow: 420ms;
+  --dur-enter: 420ms;
+  --dur-stagger: 60ms;
+  --dur-boot: 260ms;
+  --dur-boot-out: 460ms;
+  --dur-type: 34ms;
+  --dur-greeting: 420ms;
+  /* The ribbon is the one continuously moving thing on the site, so its speed
+     is a token: slow enough to read a word as it passes. */
+  --dur-ribbon: 46s;
+
+  /* --- z-index ladder --------------------------------------------------- */
+  --z-deco: 0;
+  --z-content: 1;
+  --z-header: 60;
+  --z-progress: 64;
+  --z-floating: 70;
+  --z-banner: 80;
+  --z-overlay: 90;
+  --z-skip: 120;
+  /* The opening card sits above everything, including the skip link. */
+  --z-boot: 140;
+
+  /* ======================================================================
+     NEO-BRUTALIST LAYER
+
+     The raw graphic language, kept separate from the refined tokens above so
+     the two can be mixed on purpose:
+
+       ink      the hard outline colour — paper-white on charcoal, ink-black
+                on paper. Frames, hard shadows and strokes all use it.
+       edge     border widths in three steps.
+       gouge    the hard offset shadow (no blur, no spread). This is the
+                signature of the whole design: print-like, cheap to paint.
+
+     Hard shapes are rationed. A page has a handful of framed elements and
+     plenty of quiet panels; the contrast between them is the design.
+     ====================================================================== */
+  --ink: rgba(242, 242, 243, 0.94);
+  --ink-soft: rgba(242, 242, 243, 0.52);
+  --ink-faint: rgba(242, 242, 243, 0.18);
+  --ink-accent: var(--paper-cobalt);
+  /* The one ink value the spec names, kept for outlines that should read as
+     printed black in both themes. */
+  --ink-line: #302f2b;
+
+  --edge-1: 1px;
+  --edge-2: 2px;
+  --edge-3: 3px;
+  --edge-4: 5px;
+
+  --gouge-sm: 4px 4px 0 var(--ink);
+  --gouge: 7px 7px 0 var(--ink);
+  --gouge-lg: 11px 11px 0 var(--ink);
+  --gouge-cyan: 7px 7px 0 var(--paper-cobalt);
+  --gouge-violet: 7px 7px 0 var(--paper-lavender);
+  --gouge-pink: 7px 7px 0 var(--paper-pink);
+  --gouge-quiet: 7px 7px 0 var(--ink-faint);
+
+  --radius-square: 0px;
+  --radius-edge: 3px;
+  --radius-raw: 6px;
+  --radius-block: 0px;
+
+  /* Texture tokens. Each pattern is one cheap repeating gradient. */
+  --tex-line: rgba(242, 242, 243, 0.035);
+  --tex-line-accent: color-mix(in srgb, var(--paper-cobalt) 14%, transparent);
+  --tex-stripe: rgba(242, 242, 243, 0.025);
+  --tex-stripe-accent: color-mix(in srgb, var(--paper-lavender) 8%, transparent);
+  --tex-halftone: rgba(242, 242, 243, 0.036);
+  --tex-grain: 0.035;
+  --tex-pixel: rgba(242, 242, 243, 0.05);
+  --tex-ray: color-mix(in srgb, var(--paper-sage) 9%, transparent);
+  --tex-field: color-mix(in srgb, var(--paper-butter) 10%, transparent);
+
+  --stroke-thin: 1px;
+  --stroke-thick: 2px;
+
+  /* The editorial ruler that sections hang from. */
+  --rule: rgba(242, 242, 243, 0.16);
+  --rail: rgba(242, 242, 243, 0.3);
+}
+
+/* ==========================================================================
+   LIGHT — WARM PAPER
+
+   The primary design. Cream stock, ink-black type, ink outlines, muted colour
+   blocks. Nothing here is pure white: --bg is uncoated paper and the raised
+   surfaces are warm ivory, which is what makes the pages feel printed rather
+   than lit.
+   ========================================================================== */
+[data-theme='light'] {
+  color-scheme: light;
+
+  /* Ink flips to near-black so hard frames read as printed blocks. */
+  --ink: rgba(34, 33, 31, 0.94);
+  --ink-soft: rgba(34, 33, 31, 0.52);
+  --ink-faint: rgba(34, 33, 31, 0.18);
+  --gouge-quiet: 7px 7px 0 var(--ink-faint);
+  --tex-line: rgba(34, 33, 31, 0.04);
+  --tex-line-accent: color-mix(in srgb, var(--paper-cobalt-ink) 16%, transparent);
+  --tex-stripe: rgba(34, 33, 31, 0.03);
+  --tex-stripe-accent: color-mix(in srgb, var(--paper-lavender-ink) 8%, transparent);
+  --tex-halftone: rgba(34, 33, 31, 0.042);
+  --tex-grain: 0.028;
+  --tex-pixel: rgba(34, 33, 31, 0.055);
+  --tex-ray: color-mix(in srgb, var(--paper-sage-ink) 10%, transparent);
+  --tex-field: color-mix(in srgb, var(--paper-butter-ink) 10%, transparent);
+  --rule: rgba(34, 33, 31, 0.2);
+  --rail: rgba(34, 33, 31, 0.34);
+
+  --bg: #f7f4e9;
+  --bg-deep: #ede8d9;
+  --bg-raise: #fffdf5;
+  --layer-1: rgba(255, 253, 245, 0.82);
+  --layer-2: rgba(255, 253, 245, 0.9);
+  --layer-3: rgba(255, 253, 245, 0.97);
+  --surface: var(--layer-1);
+  --surface-strong: var(--layer-3);
+  --surface-solid: #fffdf5;
+  --surface-inverse: #22211f;
+  --overlay: rgba(237, 232, 217, 0.82);
+
+  /* The border value the brief names, softened just enough to work as a
+     hairline: --ink-line carries the printed black where a full-strength
+     outline is wanted. */
+  --border: rgba(48, 47, 43, 0.28);
+  --border-strong: rgba(48, 47, 43, 0.5);
+  --divider: rgba(48, 47, 43, 0.22);
+  --hairline: rgba(48, 47, 43, 0.14);
+
+  /* The headline gradient on paper: deeper stops, because the pastel fills are
+     unreadable as type on cream. Every stop clears 4.5:1 here too. */
+  --display-1: #3f57d6;
+  --display-2: #8b3fe0;
+  --display-3: #c9338b;
+  --grad-display: linear-gradient(100deg, var(--display-1) 2%, var(--display-2) 52%, var(--display-3) 100%);
+
+  --text: #22211f;
+  --text-muted: #656158;
+  /* 5.0:1 on paper and 4.6:1 on the secondary paper surface, so mono labels
+     (section numbers, rails, meta rows) stay readable on both. */
+  --text-dim: #625e57;
+  --text-on-accent: #241f1b;
+
+  /* Pastel fills stay pastel — they are backgrounds, never text. */
+  --paper-lavender: #c3b0e8;
+  --paper-lilac: #d0c0e0;
+  --paper-cobalt: #9db2ee;
+  --paper-coral: #ef9a7f;
+  --paper-butter: #f2ce63;
+  --paper-sage: #b8cda1;
+  --paper-terracotta: #dd9468;
+  --paper-pink: #eeaac6;
+
+  /* The text-safe partners, all ≥4.8:1 on every paper surface. */
+  --paper-lavender-ink: #5b45a8;
+  --paper-lilac-ink: #6b4f86;
+  --paper-cobalt-ink: #2b4bb0;
+  --paper-coral-ink: #b8442a;
+  --paper-butter-ink: #7d6200;
+  --paper-sage-ink: #4a6330;
+  --paper-terracotta-ink: #a04a22;
+  --paper-pink-ink: #b03b6c;
+
+  /* Text accents resolve to the ink values in this theme; the *fills* above
+     are what buttons and blocks use. */
+  --neon-cyan: var(--paper-cobalt-ink);
+  --neon-violet: var(--paper-lavender-ink);
+  --neon-pink: var(--paper-pink-ink);
+  --neon-lime: var(--paper-sage-ink);
+  --neon-orange: var(--paper-terracotta-ink);
+  --neon-blue: var(--paper-cobalt-ink);
+  --neon-indigo: var(--paper-lilac-ink);
+  --neon-fuchsia: var(--paper-pink-ink);
+  --neon-coral: var(--paper-coral-ink);
+  --neon-ice: var(--paper-sage-ink);
+
+  --grad-cyan: linear-gradient(96deg, var(--paper-cobalt), var(--paper-lilac));
+  --grad-violet: linear-gradient(96deg, var(--paper-lavender), var(--paper-pink));
+  --grad-magenta: linear-gradient(96deg, var(--paper-pink), var(--paper-coral));
+  --grad-hero: linear-gradient(96deg, var(--paper-cobalt) 8%, var(--paper-lavender) 52%, var(--paper-coral));
+
+  --accent: var(--paper-cobalt-ink);
+  --accent-soft: color-mix(in srgb, var(--paper-cobalt) 24%, transparent);
+  --accent-2: var(--paper-lavender-ink);
+  --accent-3: var(--paper-coral-ink);
+  --success: #3f6b39;
+  --warning: #7d6200;
+  --danger: #b23a3a;
+
+  /* Soft colour patches on paper, plus the dot grid. */
+  --deco-1: rgba(195, 176, 232, 0.22);
+  --deco-2: rgba(157, 178, 238, 0.2);
+  --deco-3: rgba(238, 170, 198, 0.16);
+  --grid-line: rgba(48, 47, 43, 0.05);
+  --dot: rgba(48, 47, 43, 0.03);
+  --dot-accent: rgba(43, 75, 176, 0.04);
+
+  --shadow-sm: 0 1px 2px rgba(34, 33, 31, 0.08);
+  --shadow-md: 0 12px 28px -20px rgba(34, 33, 31, 0.34);
+  --shadow-lg: 0 26px 56px -32px rgba(34, 33, 31, 0.36);
+  --shadow-pop: 0 16px 34px -24px rgba(34, 33, 31, 0.34);
+  --focus-ring: 0 0 0 3px var(--bg), 0 0 0 5px var(--paper-cobalt-ink);
+  --glow-cyan: 4px 4px 0 var(--paper-cobalt-ink);
+  --glow-pink: 4px 4px 0 var(--paper-pink-ink);
+  --glow-violet: 4px 4px 0 var(--paper-lavender-ink);
+  --shadow-card: 0 1px 0 rgba(255, 255, 255, 0.7) inset, 0 14px 30px -26px rgba(34, 33, 31, 0.4);
+  --shadow-hover: 0 20px 40px -28px rgba(34, 33, 31, 0.38);
+  --ring-accent: 0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent);
+}
+
+/* Cheaper effects on small/coarse-pointer devices. Hard shadows get smaller
+   rather than softer — the language survives the downgrade, the paint cost
+   does not. */
+@media (max-width: 720px), (hover: none) and (pointer: coarse) {
+  :root {
+    --blur-glass: 8px;
+    --blur-heavy: 12px;
+    --shadow-lg: 0 18px 40px -30px rgba(0, 0, 0, 0.7);
+    --gouge-sm: 3px 3px 0 var(--ink);
+    --gouge: 5px 5px 0 var(--ink);
+    --gouge-lg: 6px 6px 0 var(--ink);
+    --gouge-cyan: 5px 5px 0 var(--paper-cobalt);
+    --gouge-violet: 5px 5px 0 var(--paper-lavender);
+    --gouge-pink: 5px 5px 0 var(--paper-pink);
+    --glow-cyan: 3px 3px 0 var(--paper-cobalt);
+    --glow-pink: 3px 3px 0 var(--paper-pink);
+    --glow-violet: 3px 3px 0 var(--paper-lavender);
+    --dot-size: 30px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-instant: 1ms;
+    --dur-fast: 1ms;
+    --dur: 1ms;
+    --dur-slow: 1ms;
+    --dur-enter: 1ms;
+    --dur-stagger: 0ms;
+    --dur-boot: 1ms;
+    --dur-boot-out: 120ms;
+    --dur-type: 1ms;
+    --dur-greeting: 1ms;
+    /* The ribbon is paused outright in this mode (see WordRibbon), so the
+       duration only matters for the static frame that replaces it. */
+    --dur-ribbon: 1ms;
+  }
+}
+
+/* ==========================================================================
+   SECTION COLOUR SCHEMES
+
+   Each scheme re-points the three accent roles. Because every graphic detail
+   reads --scheme-* rather than a hard-coded hue, a band changes colour by
+   adding one class — and the palette cannot drift section by section, since
+   all of them are declared here.
+
+   Role a is the *text* accent, so each of these is a text-safe ink value in
+   both themes; b and c are fills and edges.
+   ========================================================================== */
+
+/* Home: the studio's own colours — cobalt, lavender, coral. */
+.scheme--hero {
+  --scheme-a: var(--paper-cobalt-ink);
+  --scheme-b: var(--paper-lavender);
+  --scheme-c: var(--paper-coral);
+  --scheme-grad: var(--grad-hero);
+}
+
+/* The library: sage and butter, the printed-catalogue voice. */
+.scheme--arcade {
+  --scheme-a: var(--paper-terracotta-ink);
+  --scheme-b: var(--paper-butter);
+  --scheme-c: var(--paper-sage);
+  --scheme-grad: var(--grad-cyan);
+}
+
+.scheme--library {
+  --scheme-a: var(--paper-sage-ink);
+  --scheme-b: var(--paper-sage);
+  --scheme-c: var(--paper-butter);
+  --scheme-grad: var(--grad-cyan);
+}
+
+/* About: the editorial profile — lavender and lilac. */
+.scheme--about {
+  --scheme-a: var(--paper-lavender-ink);
+  --scheme-b: var(--paper-lilac);
+  --scheme-c: var(--paper-butter);
+  --scheme-grad: var(--grad-violet);
+}
+
+/* Contact: the warmest band — pink and coral. */
+.scheme--contact {
+  --scheme-a: var(--paper-pink-ink);
+  --scheme-b: var(--paper-pink);
+  --scheme-c: var(--paper-coral);
+  --scheme-grad: var(--grad-magenta);
+}
+
+/* The studio band: cooler, quieter, used behind process copy. */
+.scheme--studio {
+  --scheme-a: var(--paper-lilac-ink);
+  --scheme-b: var(--paper-lavender);
+  --scheme-c: var(--paper-sage);
+  --scheme-grad: var(--grad-violet);
+}
+
+/* The dashboard is a quieter room: one accent, and the secondary and
+   expressive roles collapse so nothing competes with the data. */
+.scheme--admin {
+  --scheme-a: var(--paper-cobalt-ink);
+  --scheme-b: var(--paper-cobalt);
+  --scheme-c: var(--paper-cobalt-ink);
+  --scheme-grad: var(--grad-cyan);
+  --scheme-wash: color-mix(in srgb, var(--paper-cobalt) 6%, transparent);
+}

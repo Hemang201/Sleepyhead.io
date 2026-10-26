@@ -1,0 +1,1437 @@
+/* ==========================================================================
+   PAGES — home sections, game detail, about, contact, privacy, 404
+   ========================================================================== */
+
+/* -------------------------------------------------------------- home ----- */
+
+.home-hero-note {
+  display: inline-flex;
+  gap: var(--space-2);
+  align-items: center;
+  padding: var(--space-2) var(--space-4);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-pill);
+  color: var(--text-muted);
+  font-size: var(--step--2);
+}
+
+.feature-strip {
+  display: grid;
+  gap: var(--space-4);
+  padding-top: var(--space-6);
+  border-top: 1px solid var(--border);
+}
+
+@media (min-width: 720px) {
+  .feature-strip {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.feature-strip__item {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.feature-strip__item h3 {
+  font-size: var(--step-1);
+}
+
+.feature-strip__item p {
+  color: var(--text-muted);
+  font-size: var(--step--1);
+}
+
+.featured-grid {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr));
+}
+
+/*
+ * The first featured card is the editorial lead: a cinematic crop (21:9, set in
+ * components.css) and a slightly larger body, so the featured row has one
+ * obvious entry point instead of three equal tiles. Its *column* is assigned by
+ * the showcase grid (see the composition block below) — deliberately not here,
+ * because a span declared for the old auto-fill grid stretched the card across
+ * both showcase columns.
+ */
+@media (min-width: 1100px) {
+  .game-card--lead .game-card__body {
+    gap: var(--space-4);
+    padding: clamp(1.5rem, 2.4vw, 2.25rem);
+  }
+
+  .game-card--lead .game-card__description {
+    max-width: 64ch;
+    font-size: var(--step-0);
+  }
+}
+
+.recent-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.recent-chip {
+  display: inline-flex;
+  gap: var(--space-2);
+  align-items: center;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  color: var(--text-muted);
+  font-size: var(--step--1);
+  text-decoration: none;
+}
+
+.recent-chip:hover {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.cta-band {
+  position: relative;
+  display: grid;
+  gap: var(--space-5);
+  align-items: center;
+  padding: clamp(1.75rem, 5vw, 3.5rem);
+  border: 2px solid var(--border-strong);
+  border-radius: var(--radius-xl);
+  background: linear-gradient(120deg, color-mix(in srgb, var(--neon-cyan) 12%, transparent), transparent 55%),
+    linear-gradient(300deg, color-mix(in srgb, var(--neon-pink) 14%, transparent), transparent 60%), var(--bg-raise);
+  overflow: hidden;
+}
+
+@media (min-width: 900px) {
+  .cta-band {
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  }
+}
+
+.cta-band__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+/* ------------------------------------------------------- game detail ------ */
+
+/*
+ * The hero is a single column: the breadcrumb row, then `.details`.
+ *
+ * `.details`, not `.detail-hero`, owns the two-column split. The columns used to
+ * sit on the hero itself, which put the breadcrumb in the wide column and the
+ * whole title/art block in the narrow one — the layout looked broken because it
+ * was: the grid was wrapping the wrong elements.
+ */
+.detail-hero {
+  position: relative;
+  display: grid;
+  gap: clamp(1rem, 3vw, 2rem);
+  padding-block: clamp(1.5rem, 4vw, 3rem);
+}
+
+.details {
+  display: grid;
+  gap: clamp(1.5rem, 4vw, 3rem);
+  align-items: center;
+  /* Without these a wide child (art, a long word) can push the grid wider than
+     the viewport and give the whole page a horizontal scrollbar. */
+  min-width: 0;
+}
+
+.details > * {
+  min-width: 0;
+}
+
+@media (min-width: 960px) {
+  .details {
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+  }
+}
+
+/* Wide screens have the room for a bigger key art, so use it. */
+@media (min-width: 1400px) {
+  .details {
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
+  }
+}
+
+.detail-hero__title {
+  font-size: clamp(2.2rem, 1.5rem + 3.4vw, 4.2rem);
+  text-transform: uppercase;
+  letter-spacing: -0.03em;
+}
+
+.detail-hero__summary {
+  margin-top: var(--space-4);
+  color: var(--text-muted);
+  font-size: var(--step-1);
+}
+
+.detail-hero__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-top: var(--space-5);
+}
+
+.detail-hero__art {
+  position: relative;
+  border: 1px solid color-mix(in srgb, var(--card-accent, var(--accent)) 26%, var(--border-strong));
+  border-radius: var(--radius-lg);
+  background: var(--bg-raise);
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+  min-width: 0;
+}
+
+.detail-hero__art img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  aspect-ratio: 16 / 10;
+  /* Cover, never stretch: uploads of any shape fill the frame consistently. */
+  object-fit: cover;
+  /* Key art is a preview, not the whole page: cap it so a very wide column
+     cannot make the hero taller than the viewport. */
+  max-height: min(52vh, 520px);
+}
+
+/* The screenshot gallery crops to one ratio instead of letting a tall capture
+   set the row height. */
+.detail-layout .gallery img {
+  aspect-ratio: 16 / 10;
+  object-fit: cover;
+  border-color: var(--border);
+  box-shadow: var(--shadow-card);
+  transition: transform var(--dur) var(--ease-out), border-color var(--dur) var(--ease-out);
+}
+
+.detail-layout .gallery img:hover {
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+}
+
+.detail-hero__art-badge {
+  position: absolute;
+  left: var(--space-3);
+  bottom: var(--space-3);
+}
+
+.detail-layout {
+  display: grid;
+  gap: clamp(1.5rem, 4vw, 3rem);
+  margin-top: var(--space-7);
+  align-items: start;
+  min-width: 0;
+}
+
+.detail-layout > * {
+  min-width: 0;
+}
+
+/* The player is the point of this page: it gets the larger share of the row, and
+   the metadata sits beside it rather than squeezing it. */
+@media (min-width: 1000px) {
+  .detail-layout {
+    grid-template-columns: minmax(0, 1.7fr) minmax(240px, 0.8fr);
+  }
+}
+
+@media (min-width: 1600px) {
+  .detail-layout {
+    grid-template-columns: minmax(0, 1.85fr) minmax(260px, 0.7fr);
+  }
+}
+
+.detail-aside {
+  display: grid;
+  gap: var(--space-5);
+}
+
+@media (min-width: 1000px) {
+  .detail-aside {
+    position: sticky;
+    top: calc(var(--header-height) + var(--space-5));
+  }
+}
+
+.prose {
+  display: grid;
+  gap: var(--space-4);
+  max-width: 72ch;
+  color: var(--text-muted);
+}
+
+.prose h2,
+.prose h3 {
+  margin-top: var(--space-3);
+  color: var(--text);
+}
+
+.prose strong {
+  color: var(--text);
+}
+
+.prose a {
+  color: var(--text);
+  text-decoration-color: var(--accent);
+}
+
+.instruction-list {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  counter-reset: steps;
+  list-style: none;
+}
+
+.instruction-list li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--space-3);
+  align-items: baseline;
+  color: var(--text-muted);
+}
+
+.instruction-list li::before {
+  counter-increment: steps;
+  content: counter(steps, decimal-leading-zero);
+  font-family: var(--font-mono);
+  font-size: var(--step--2);
+  color: var(--accent);
+}
+
+.controls-grid {
+  display: grid;
+  gap: var(--space-4);
+}
+
+@media (min-width: 640px) {
+  .controls-grid {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr));
+  }
+}
+
+.control-block {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.control-block__title {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  font-family: var(--font-mono);
+  font-size: var(--step--2);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text);
+}
+
+.control-block__list {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--text-muted);
+  font-size: var(--step--1);
+}
+
+.control-block__list li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--space-2);
+  align-items: baseline;
+}
+
+.control-block__bullet {
+  width: 6px;
+  height: 6px;
+  margin-top: 0.55em;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.timeline {
+  display: grid;
+  gap: var(--space-5);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.timeline__item {
+  display: grid;
+  gap: var(--space-2);
+  padding-left: var(--space-5);
+  border-left: 2px solid var(--border);
+}
+
+.timeline__head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  align-items: baseline;
+}
+
+.timeline__version {
+  font-family: var(--font-display);
+  font-size: var(--step-1);
+  font-weight: 650;
+}
+
+.timeline__date {
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  font-size: var(--step--2);
+  letter-spacing: 0.08em;
+}
+
+.timeline__changes {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding-left: 1.1em;
+  color: var(--text-muted);
+  font-size: var(--step--1);
+}
+
+/* -------------------------------------------------------------- about ----- */
+
+/* ---------------------------------------------------------- about page ----
+   The portrait the owner uploads, and the optional milestone /
+   education lists. Both collapse to nothing when the content is empty. */
+
+.about-avatar {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-strong);
+  background: var(--bg-deep);
+}
+
+.about-timeline {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.about-timeline__item {
+  display: grid;
+  gap: 0.15rem;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+
+.about-timeline__year {
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  font-size: var(--step--2);
+  letter-spacing: 0.08em;
+}
+
+.about-timeline__title {
+  font-weight: 600;
+}
+
+.about-timeline__body {
+  color: var(--text-muted);
+  font-size: var(--step--1);
+}
+
+.about-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.about-tags .chip {
+  border-width: 1px;
+  font-size: var(--step--1);
+}
+
+/*
+ * Statements have their own form. Rows on hairlines with a mono numeral look
+ * like an index in a printed profile; nine filled pills looked like a tag
+ * cloud, and a tag cloud is what a page reaches for when it has no hierarchy.
+ */
+.about-index {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--rule);
+}
+
+.about-index__item {
+  display: grid;
+  grid-template-columns: 3ch minmax(0, 1fr);
+  gap: var(--space-3);
+  align-items: baseline;
+  padding: 0.7em 0;
+  border-bottom: 1px solid var(--rule);
+  color: var(--text);
+  font-size: var(--step-0);
+  line-height: 1.4;
+}
+
+.about-index__number {
+  font-family: var(--font-mono);
+  font-size: var(--step--2);
+  letter-spacing: 0.12em;
+  color: var(--text-dim);
+}
+
+@media (min-width: 760px) {
+  .about-index__item {
+    padding: 0.8em 0;
+  }
+}
+
+.principle-grid {
+  display: grid;
+  gap: var(--space-4);
+}
+
+@media (min-width: 760px) {
+  .principle-grid {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
+  }
+}
+
+.principle {
+  display: grid;
+  gap: var(--space-3);
+  padding: clamp(1.25rem, 3vw, 1.75rem);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+
+.principle__index {
+  font-family: var(--font-mono);
+  font-size: var(--step--2);
+  letter-spacing: 0.14em;
+  color: var(--accent);
+}
+
+.principle h3 {
+  font-size: var(--step-1);
+}
+
+.principle p {
+  color: var(--text-muted);
+  font-size: var(--step--1);
+}
+
+/* ------------------------------------------------------------ contact ----- */
+
+.reason-list {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.reason {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-4) var(--space-5);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.reason__title {
+  font-family: var(--font-display);
+  font-size: var(--step-1);
+  font-weight: 650;
+}
+
+.reason__body {
+  color: var(--text-muted);
+  font-size: var(--step--1);
+}
+
+.email-card {
+  display: grid;
+  gap: var(--space-4);
+  padding: clamp(1.25rem, 3vw, 2rem);
+  border: 2px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  background: linear-gradient(150deg, color-mix(in srgb, var(--accent) 12%, transparent), transparent 60%), var(--bg-raise);
+}
+
+.email-card__address {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+  font-family: var(--font-mono);
+  font-size: var(--step-0);
+  word-break: break-all;
+}
+
+.email-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.social-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.social-link {
+  display: inline-flex;
+  gap: var(--space-2);
+  align-items: center;
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  text-decoration: none;
+  font-size: var(--step--1);
+}
+
+.social-link:hover {
+  border-color: var(--accent);
+}
+
+/* ------------------------------------------------------------ privacy ----- */
+
+.privacy-layout {
+  display: grid;
+  gap: var(--space-5);
+  max-width: 80ch;
+  min-width: 0;
+}
+
+/* Grid and flex children default to `min-width: auto`, which means a table
+   inside a panel can force the whole page wider than the viewport. The panel
+   shrinks, and the table scrolls inside `.table-scroll` instead. */
+.privacy-layout > * {
+  min-width: 0;
+}
+
+/* A bare scroll container for a table that already sits in a panel. The
+   dashboard's bordered `.table-scroll` is a different thing; this one only exists
+   so the storage table can scroll inside the panel instead of widening the page. */
+.storage-table__scroll {
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+}
+
+.storage-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--step--1);
+}
+
+.storage-table th,
+.storage-table td {
+  padding: var(--space-3);
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+}
+
+.storage-table th {
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  font-size: var(--step--2);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.storage-table code {
+  font-family: var(--font-mono);
+  font-size: 0.86em;
+  color: var(--accent);
+}
+
+/* ------------------------------------------------------------ not found --- */
+
+.not-found {
+  display: grid;
+  gap: var(--space-5);
+  justify-items: start;
+  padding-block: clamp(2rem, 8vw, 6rem);
+}
+
+/* Offset ink type: the printed-misregistration trick, which is far more at home
+   on paper than a gradient-filled numeral. */
+.not-found__code {
+  font-family: var(--font-display);
+  font-size: clamp(4rem, 18vw, 12rem);
+  font-weight: 700;
+  line-height: 0.85;
+  letter-spacing: -0.05em;
+  color: var(--text);
+  text-shadow: var(--edge-4) var(--edge-4) 0 var(--scheme-b);
+}
+
+/* ==========================================================================
+   NEO-BRUTALIST PAGE COMPOSITION
+
+   Page-level arrangements: where the heavy frames sit, how the featured row is
+   weighted, and how each band textures itself. Component styling lives in
+   components.css; this file decides *composition*.
+   ========================================================================== */
+
+/* ------------------------------------------------- value propositions ---- */
+
+.feature-strip {
+  gap: clamp(1rem, 3vw, 2.25rem);
+  padding-top: var(--space-6);
+  border-top: var(--edge-2) solid var(--rule);
+}
+
+.feature-strip__item {
+  position: relative;
+  gap: var(--space-3);
+  padding-left: var(--space-5);
+  border-left: var(--edge-3) solid var(--ink-faint);
+}
+
+.feature-strip__item:hover {
+  border-left-color: var(--accent);
+}
+
+.feature-strip__index {
+  font-family: var(--font-mono);
+  font-size: var(--step--2);
+  font-weight: 600;
+  letter-spacing: var(--tracking-label);
+  color: var(--text-dim);
+}
+
+.feature-strip__item h3 {
+  font-size: var(--step-1);
+  text-transform: none;
+}
+
+/* ------------------------------------------------------ featured row ----
+   One framed lead entry point across the full width, then the remaining
+   featured games in a row beneath it. The lead carries the heavy frame, the
+   crop marks and a cinematic crop; the supporting cards stay refined — that
+   contrast is the whole point of the system.
+
+   Deliberately *not* a side-by-side split: `.game-card` is `height: 100%` so
+   cards in a row match heights, which stretched a vertical lead card to the
+   height of the stack beside it and left a void in the middle of its body. */
+
+/* ------------------------------------------------- the featured heading ----
+   A drawn arrow, the way an editor marks up a page, sitting in the eyebrow of
+   a normal numbered section head. It used to be the masthead itself, which
+   left this band as the only one on the page without a number. */
+
+.sec-head__flourish {
+  display: inline-flex;
+  align-items: center;
+  color: var(--scheme-a);
+}
+
+.sec-head__flourish svg {
+  display: block;
+}
+
+/*
+ * THE FEATURED LAYOUT: one banner + four compact rows.
+ *
+ *
+ * This is the reference composition — a single wide entry point carrying the
+ * artwork and the play action, and a 2x2 field of compact rows beside it. It
+ * replaces a stack of three identical tall cards, which read as a list rather
+ * than as a front page.
+ */
+.spotlight {
+  display: grid;
+  gap: clamp(1.25rem, 2.2vw, 1.85rem);
+  align-items: stretch;
+}
+
+.spotlight__grid {
+  display: grid;
+  gap: clamp(1rem, 1.8vw, 1.35rem);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-content: start;
+}
+
+@media (min-width: 1000px) {
+  .spotlight {
+    grid-template-columns: minmax(0, 1.12fr) minmax(0, 0.88fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .spotlight__grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* ------------------------------------------------------- banner card ---- */
+
+.game-card--banner {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  min-height: clamp(20rem, 30vw, 25rem);
+  border: var(--edge-3) solid var(--ink);
+  border-radius: var(--radius-raw);
+  background: var(--bg-deep);
+  box-shadow: var(--gouge);
+}
+
+.game-card--banner .game-card__media {
+  position: absolute;
+  inset: 0;
+  aspect-ratio: auto;
+  height: 100%;
+}
+
+.game-card--banner .game-card__art {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* The scrim is what makes white type on artwork readable; it is a single
+   gradient anchored to the bottom, not a wash over the whole image. */
+.game-card--banner::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(0deg, rgba(12, 12, 10, 0.92) 0%, rgba(12, 12, 10, 0.72) 42%, transparent 78%);
+}
+
+.game-card--banner .game-card__badges,
+.game-card--banner .game-card__fav,
+.game-card--banner .game-card__play {
+  display: none;
+}
+
+.game-card--banner .game-card__body {
+  position: absolute;
+  z-index: 2;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  display: grid;
+  gap: var(--space-3);
+  padding: clamp(1.25rem, 2.4vw, 2rem);
+  color: #f8f4ea;
+}
+
+.game-card--banner .game-card__title {
+  font-family: var(--font-graphic);
+  font-size: clamp(1.35rem, 1.1rem + 1vw, 1.9rem);
+  letter-spacing: -0.01em;
+  color: #fffdf7;
+  text-transform: uppercase;
+}
+
+.game-card--banner .game-card__title a {
+  color: inherit;
+}
+
+.game-card--banner .game-card__description {
+  max-width: 34ch;
+  margin: 0;
+  color: rgba(248, 244, 234, 0.86);
+  font-size: var(--step--1);
+}
+
+.game-card--banner .game-card__meta {
+  display: none;
+}
+
+.game-card--banner .game-card__actions {
+  margin-top: var(--space-1);
+}
+
+.game-card--banner .game-card__actions .btn {
+  border-color: rgba(248, 244, 234, 0.55);
+}
+
+/* The one coloured tag in the band: this is the entry point. */
+.game-card--banner .game-card__flag {
+  position: absolute;
+  z-index: 2;
+  top: 0.9rem;
+  left: 0.9rem;
+  padding: 0.2rem 0.6rem;
+  border: var(--edge-1) solid var(--ink);
+  background: var(--paper-pink);
+  color: var(--text-on-accent);
+  font-family: var(--font-mono);
+  font-size: var(--step--2);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+/* ---------------------------------------------------------- row card ---- */
+
+.game-card--row {
+  position: relative;
+  display: grid;
+  grid-template-columns: clamp(3.6rem, 5vw, 4.6rem) minmax(0, 1fr) auto;
+  gap: var(--space-3);
+  align-items: center;
+  padding: var(--space-2) var(--space-3) var(--space-2) var(--space-2);
+  border: var(--edge-2) solid var(--ink);
+  border-radius: var(--radius-raw);
+  background: var(--surface-solid);
+  box-shadow: var(--gouge-sm);
+  transition: transform var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out);
+}
+
+.game-card--row:hover,
+.game-card--row:focus-within {
+  transform: translate(-2px, -2px);
+  box-shadow: var(--gouge);
+}
+
+.game-card--row .game-card__media {
+  aspect-ratio: 1;
+  overflow: hidden;
+  border: var(--edge-1) solid var(--ink-faint);
+  border-radius: var(--radius-edge);
+}
+
+.game-card--row .game-card__art {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.game-card--row .game-card__badges,
+.game-card--row .game-card__fav,
+.game-card--row .game-card__play,
+.game-card--row .game-card__description,
+.game-card--row .game-card__meta,
+.game-card--row .game-card__actions {
+  display: none;
+}
+
+.game-card--row .game-card__body {
+  display: grid;
+  gap: var(--space-2);
+  padding: 0;
+  min-width: 0;
+}
+
+.game-card--row .game-card__title {
+  margin: 0;
+  font-family: var(--font-graphic);
+  font-size: var(--step--1);
+  font-weight: 700;
+  letter-spacing: -0.005em;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.game-card--row .game-card__body {
+  align-content: center;
+}
+
+.game-card--row .game-card__row-status {
+  width: fit-content;
+  padding: 0.22em 0.5em;
+  font-size: 0.62rem;
+  letter-spacing: 0.08em;
+}
+
+.game-card--row .game-card__title a {
+  color: var(--text);
+  text-decoration: none;
+}
+
+/* The row's whole surface is the link target, so the title link is stretched
+   over the card. The affordance icon sits above it. */
+.game-card--row .game-card__title a::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+}
+
+.game-card--row .tag-list {
+  margin: 0;
+  padding: 0;
+  gap: var(--space-2);
+}
+
+.game-card--row .chip {
+  font-size: var(--step--2);
+}
+
+.game-card__open {
+  position: absolute;
+  top: 0.45rem;
+  right: 0.45rem;
+  display: inline-flex;
+  width: 1.35rem;
+  height: 1.35rem;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-dim);
+}
+
+.game-card--row .game-card__open {
+  position: static;
+  justify-self: end;
+  align-self: start;
+}
+
+/* A shorter cinematic band keeps the lead from eating the whole viewport. */
+.game-card--lead .game-card__media {
+  aspect-ratio: 21 / 8;
+}
+
+/* On a wide lead card the copy and the actions sit in two columns, so the body
+   reads as an editorial caption rather than a sparse strip under the art. */
+@media (min-width: 900px) {
+  .game-card--lead .game-card__body {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+    gap: var(--space-3) var(--space-6);
+    padding: clamp(1.5rem, 2.4vw, 2.25rem);
+  }
+
+  .game-card--lead .game-card__body > * {
+    grid-column: 1;
+  }
+
+  .game-card--lead .game-card__actions {
+    grid-column: 2;
+    grid-row: 1 / span 4;
+    align-self: end;
+    justify-content: flex-end;
+  }
+}
+
+/* The lead card wears the frame; hovering presses it into its shadow. */
+.game-card--lead {
+  border: var(--edge-3) solid var(--ink);
+  border-radius: var(--radius-raw);
+  box-shadow: var(--gouge);
+  background: linear-gradient(180deg, var(--layer-2), var(--layer-1) 42%, var(--bg-raise));
+}
+
+.game-card--lead:hover,
+.game-card--lead:focus-within {
+  transform: translate(-3px, -3px);
+  box-shadow: var(--gouge-cyan);
+  border-color: var(--ink);
+}
+
+.game-card--lead .game-card__title {
+  font-size: clamp(1.7rem, 1.2rem + 1.6vw, 2.6rem);
+}
+
+.game-card--lead .game-card__media {
+  border-bottom: var(--edge-3) solid var(--ink);
+}
+
+/* A mono index rail on the supporting cards, so the row reads as a set. */
+.game-card__index {
+  position: absolute;
+  top: var(--space-3);
+  right: var(--space-3);
+  z-index: 2;
+  padding: 0.2em 0.45em;
+  border: var(--edge-1) solid var(--ink-faint);
+  background: color-mix(in srgb, var(--bg-deep) 80%, transparent);
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  font-size: var(--step--2);
+  letter-spacing: 0.1em;
+}
+
+/* ---------------------------------------------------------- library ---- */
+
+/* The filter bar becomes a framed control panel: one heavy frame per library
+   page, with mono labels and dashed rules between its groups. Its own internal
+   layout is left alone — this only adds the frame character. */
+.filter-bar {
+  position: relative;
+  border: var(--edge-3) solid var(--ink);
+  border-radius: var(--radius-raw);
+  background: color-mix(in srgb, var(--bg-deep) 62%, transparent);
+  box-shadow: var(--gouge-quiet);
+}
+
+.filter-bar__legend,
+.result-count {
+  font-family: var(--font-mono);
+  font-size: var(--step--2);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.result-count strong {
+  color: var(--text);
+}
+
+@media (max-width: 720px) {
+  .filter-bar {
+    border-width: var(--edge-2);
+  }
+}
+
+/* --------------------------------------------------- game detail page ----
+   A launch page: hard ruled header, framed player, spec-sheet aside. */
+
+.detail-hero {
+  padding-block: clamp(1.25rem, 3vw, 2.25rem) clamp(1.75rem, 4vw, 3rem);
+  border-bottom: var(--edge-2) solid var(--rule);
+}
+
+.detail-hero__rail {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+  align-items: center;
+  margin-bottom: var(--space-5);
+}
+
+.detail-hero__title {
+  font-size: clamp(2.4rem, 1.4rem + 4vw, 5rem);
+  line-height: 0.92;
+}
+
+.detail-hero__art {
+  position: relative;
+}
+
+.detail-hero__art img {
+  border: var(--edge-3) solid var(--ink);
+  border-radius: var(--radius-raw);
+  box-shadow: var(--gouge);
+}
+
+@media (max-width: 720px) {
+  .detail-hero__art img {
+    border-width: var(--edge-2);
+    box-shadow: var(--gouge-sm);
+  }
+}
+
+.detail-layout .gallery img {
+  border: var(--edge-2) solid var(--ink-faint);
+  border-radius: var(--radius-sm);
+}
+
+.detail-layout .gallery img:hover {
+  border-color: var(--ink);
+  box-shadow: var(--gouge-sm);
+}
+
+/* The aside becomes a datasheet: mono headings, hard cell rules. */
+.detail-aside .panel {
+  padding: clamp(1.1rem, 2vw, 1.5rem);
+}
+
+.detail-aside .panel__title {
+  font-family: var(--font-mono);
+  font-size: var(--step--2);
+  font-weight: 600;
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.control-block {
+  border: var(--edge-1) solid var(--ink-faint);
+  border-radius: var(--radius-edge);
+  background: color-mix(in srgb, var(--bg-deep) 45%, transparent);
+}
+
+.control-block__list li {
+  border-bottom: var(--edge-1) solid var(--hairline);
+}
+
+.control-block__list li:last-child {
+  border-bottom: 0;
+}
+
+/* Build history rows read as a changelog table. */
+.timeline__item {
+  border: var(--edge-1) solid var(--ink-faint);
+  border-left: var(--edge-3) solid var(--ink-faint);
+  border-radius: var(--radius-edge);
+}
+
+.timeline__item:hover {
+  border-left-color: var(--accent);
+}
+
+.timeline__version {
+  font-family: var(--font-mono);
+  letter-spacing: 0.06em;
+}
+
+/* ------------------------------------------------------------- about ----
+   Editorial and personal: a framed portrait, inverted thesis block, numbered
+   principles that alternate heavy/quiet so the column has a rhythm. */
+
+.about-avatar {
+  border: var(--edge-4) solid var(--ink);
+  border-radius: var(--radius-raw);
+  box-shadow: var(--gouge-violet);
+}
+
+.about-thesis {
+  position: relative;
+  padding: clamp(1.5rem, 3vw, 2.5rem);
+  border: var(--edge-3) solid var(--ink);
+  border-radius: var(--radius-raw);
+  background: linear-gradient(150deg, color-mix(in srgb, var(--neon-violet) 22%, transparent), transparent 62%),
+    var(--bg-raise);
+  box-shadow: var(--gouge);
+}
+
+.principle {
+  border-width: var(--edge-2);
+  border-color: var(--ink-faint);
+  border-radius: var(--radius-edge);
+  background: color-mix(in srgb, var(--bg-deep) 45%, transparent);
+}
+
+/* Every second principle is a printed block: rhythm without repetition. */
+.principle:nth-child(2n) {
+  border-color: var(--ink);
+  box-shadow: var(--gouge-sm);
+  background: var(--layer-2);
+}
+
+.principle__index {
+  font-family: var(--font-mono);
+  font-size: var(--step--2);
+  color: var(--accent);
+}
+
+.about-timeline__item {
+  border-left: var(--edge-3) solid var(--ink-faint);
+  padding-left: var(--space-4);
+}
+
+.about-timeline__item:hover {
+  border-left-color: var(--accent);
+}
+
+.about-timeline__year {
+  font-family: var(--font-mono);
+  letter-spacing: 0.08em;
+}
+
+/* ----------------------------------------------------------- contact ---- */
+
+.reason {
+  position: relative;
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-5) var(--space-4) var(--space-6);
+  border: var(--edge-2) solid var(--ink-faint);
+  border-left: var(--edge-4) solid var(--accent);
+  background: color-mix(in srgb, var(--bg-deep) 50%, transparent);
+}
+
+.reason__index {
+  position: absolute;
+  top: var(--space-4);
+  left: var(--space-3);
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  font-size: var(--step--2);
+  letter-spacing: 0.06em;
+}
+
+.reason__title {
+  padding-left: var(--space-4);
+}
+
+.reason__body {
+  padding-left: var(--space-4);
+}
+
+.email-card__note {
+  margin: 0;
+  padding-top: var(--space-3);
+  border-top: 1px dashed var(--rule);
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  font-size: var(--step--2);
+  line-height: 1.6;
+}
+
+.email-card {
+  position: relative;
+  border: var(--edge-3) solid var(--ink);
+  border-radius: var(--radius-raw);
+  background: color-mix(in srgb, var(--bg-deep) 58%, transparent);
+  box-shadow: var(--gouge);
+}
+
+.email-card__address {
+  font-family: var(--font-mono);
+  font-size: var(--step-1);
+  letter-spacing: -0.01em;
+}
+
+/* ------------------------------------------------------- CTA / bands ---- */
+
+.cta-band {
+  position: relative;
+  border: var(--edge-3) solid var(--ink);
+  border-radius: var(--radius-raw);
+  background: linear-gradient(120deg, color-mix(in srgb, var(--neon-cyan) 16%, transparent), transparent 58%),
+    color-mix(in srgb, var(--bg-deep) 70%, transparent);
+  box-shadow: var(--gouge);
+}
+
+/* ------------------------------------------------- recently / favourites --- */
+
+.recent-strip {
+  gap: var(--space-3);
+}
+
+.recent-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  border: var(--edge-2) solid var(--ink-faint);
+  background: color-mix(in srgb, var(--bg-deep) 50%, transparent);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--step--2);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-decoration: none;
+  transition: transform var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
+}
+
+.recent-chip:hover {
+  transform: translate(-2px, -2px);
+  border-color: var(--ink);
+  box-shadow: var(--gouge-sm);
+  color: var(--text);
+}
+
+/* --------------------------------------------------------- privacy ---- */
+
+.storage-table th,
+.storage-table td {
+  border-bottom: var(--edge-1) solid var(--hairline);
+}
+
+.storage-table thead th {
+  border-bottom: var(--edge-2) solid var(--ink-faint);
+}
+
+/* ==========================================================================
+   CARD AND CONTROL POLISH
+
+   Written with `:where()` so every rule here has zero specificity: the framed
+   lead card, the heavy buttons and the module rules keep winning exactly as
+   they did before. This block only adds the small motions and the per-game
+   accent, it never overrides the structure.
+   ========================================================================== */
+
+/* The band's own scheme tints the quieter cards: a hairline edge that colours
+   up on hover, in the game's accent rather than the site's. */
+:where(.game-card) {
+  border: var(--edge-1) solid var(--ink-faint);
+  border-radius: var(--radius-edge);
+  transition: border-color var(--dur) var(--ease-out), box-shadow var(--dur) var(--ease-out),
+    transform var(--dur) var(--ease-snap);
+}
+
+:where(.game-card:hover, .game-card:focus-within) {
+  border-color: color-mix(in srgb, var(--card-accent) 70%, var(--ink-faint));
+  /* Depth is printed: the card's own hard shadow, in the game's accent, with no
+     blur at all. An accent-coloured bloom is exactly the effect this design
+     replaced. */
+  box-shadow: 4px 4px 0 color-mix(in srgb, var(--card-accent) 55%, var(--ink));
+  transform: translate(-2px, -2px);
+}
+
+/* The lead card keeps its heavy ink frame and simply grows its shadow by one
+   step, so the frame stays the same object in every section. */
+.game-card--lead:hover,
+.game-card--lead:focus-within {
+  box-shadow: var(--gouge);
+}
+
+/* The artwork is cropped by its frame, so the zoom is clipped with it. */
+:where(.game-card:hover, .game-card:focus-within) .game-card__art {
+  transform: scale(1.06);
+}
+
+:where(.game-card__play) {
+  box-shadow: inset 0 0 0 var(--edge-1) color-mix(in srgb, var(--card-accent) 60%, transparent);
+}
+
+/* The play mark steps toward the artwork it belongs to. */
+:where(.game-card__play svg) {
+  transition: transform var(--dur) var(--ease-snap);
+}
+
+:where(.game-card:hover, .game-card:focus-within) .game-card__play svg {
+  transform: translateX(3px);
+}
+
+/* Artwork that failed or was never uploaded: the designed fallback carries the
+   game's accent, so a missing cover reads as a deliberate plate. */
+:where(.game-card__media) {
+  background: linear-gradient(
+    150deg,
+    color-mix(in srgb, var(--card-accent) 26%, transparent),
+    color-mix(in srgb, var(--bg-raise) 88%, transparent)
+  );
+}
+
+/* Cards on a phone have no hover state to reward, so nothing is hidden behind
+   one: the frame stays, the movement does not. */
+@media (hover: none) {
+  :where(.game-card:hover) {
+    transform: none;
+  }
+}

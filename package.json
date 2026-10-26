@@ -1,0 +1,53 @@
+{
+  "name": "hemang-gupta-arcade",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Portfolio and browser game arcade for indie game developer Hemang Gupta.",
+  "scripts": {
+    "dev": "vite",
+    "dev:full": "wrangler dev",
+    "build": "vite build",
+    "build:worker": "node scripts/build-worker.mjs",
+    "build:all": "npm run typecheck && vite build && npm run build:worker",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit && tsc -p worker --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint .",
+    "icons": "node scripts/generate-icons.mjs",
+    "db:migrate": "wrangler d1 migrations apply DB --local",
+    "db:migrate:remote": "wrangler d1 migrations apply DB --remote",
+    "seed": "node scripts/seed-dev.mjs",
+    "verify": "node scripts/verify.mjs",
+    "audit:design": "node scripts/audit-design.mjs",
+    "audit:security": "node scripts/audit-security.mjs"
+  },
+  "dependencies": {
+    "@fontsource-variable/fraunces": "^5.3.0",
+    "@fontsource-variable/inter": "^5.3.0",
+    "@fontsource-variable/space-grotesk": "^5.3.0",
+    "@fontsource-variable/syne": "^5.3.0",
+    "fflate": "^0.8.3",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "react-router-dom": "^7.18.4"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20261015.1",
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^26.6.5",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.2",
+    "esbuild": "^0.28.2",
+    "eslint": "^10.12.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "playwright-core": "^1.64.1",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.71.2",
+    "vite": "^8.3.4",
+    "vitest": "^5.0.5",
+    "wrangler": "^4.151.0"
+  }
+}

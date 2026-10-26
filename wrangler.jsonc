@@ -1,0 +1,47 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "hemang-gupta-arcade",
+  "main": "worker/index.ts",
+  "compatibility_date": "2026-10-01",
+  "compatibility_flags": ["nodejs_compat"],
+
+  // Everything reaches the Worker first (API, auth routes, game builds) and the
+  // Worker falls back to the static build. The deployed Worker entrypoint is
+  // served the same way, so local behaviour matches production.
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": true
+  },
+
+  // Local development uses Miniflare's D1/R2 emulation. Deployed environments get
+  // their own isolated resources created by the Sites tooling.
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "hg-arcade",
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "r2_buckets": [{ "binding": "FILES", "bucket_name": "hg-arcade-files" }],
+
+  "vars": {
+    // Public values only. Local overrides live in .dev.vars; the deployed
+    // FREEBUFF_CLIENT_ID / FREEBUFF_ISSUER / APP_ORIGIN are injected on deploy.
+    //
+    // Nothing secret belongs here. The owner's private authentication address
+    // (OWNER_AUTH_EMAIL), the transactional email API key (RESEND_API_KEY) and
+    // the sender (EMAIL_FROM) are set as Worker secrets — see docs/SECURITY.md
+    // and docs/DEPLOYMENT.md. With no email provider configured, the dashboard
+    // reports "unconfigured" and cannot be unlocked, by design.
+    "EMAIL_APP_NAME": "the arcade dashboard",
+    "MAX_BUILD_BYTES": "536870912",
+    "MAX_FILE_BYTES": "67108864",
+    "MAX_BUILD_FILES": "3000",
+    "MAX_ZIP_BYTES": "26214400"
+  },
+
+  "observability": { "enabled": true }
+}

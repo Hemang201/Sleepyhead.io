@@ -1,0 +1,55 @@
+# Local development variables for `wrangler dev` (npm run dev:full).
+#
+# Copy this file to `.dev.vars` and replace every placeholder. `.dev.vars` is
+# gitignored on purpose: it holds your private login address, your OTP
+# destination, the first-run setup token and the local harness password. Never
+# commit the filled-in file, and never copy DEV_OWNER_* into a deployment.
+#
+#   cp .dev.vars.example .dev.vars
+#
+# The public site runs without any of this. The dashboard needs a login
+# identity, somewhere to send codes, a way to send them, and (for the first run
+# only) a setup token.
+#
+# This file holds the PRIVATE authentication addresses only. The PUBLIC contact
+# address is not an environment variable: it is site content, edited in the
+# dashboard under Site content → Contact and stored in D1. The two are
+# deliberately independent — see SETUP_EMAILS.md at the project root.
+
+# The origin this local server answers on. Must be loopback: the development
+# reset seam and the local email catcher are both refused otherwise.
+APP_ORIGIN=http://127.0.0.1:8787
+
+# 1. ADMINISTRATOR LOGIN IDENTITY — what you type into the sign-in form. It is
+#    only ever compared on the server, and never rendered publicly.
+OWNER_LOGIN_EMAIL=owner@example.com
+
+# 2. PRIVATE OTP DESTINATION — where verification codes are emailed. It may be
+#    the same address as the login identity or a completely different one.
+#    Setting it here pins it: the dashboard then cannot move it (deliberate, so
+#    a stolen session cannot redirect your codes). Leave it unset to let the
+#    first verified code establish the stored address instead.
+# OWNER_OTP_EMAIL=owner-private@example.com
+
+# Legacy name, still honoured as the initial OTP destination when OWNER_OTP_EMAIL
+# is not set. Keep it during the upgrade, or set OWNER_OTP_EMAIL above.
+OWNER_AUTH_EMAIL=owner@example.com
+
+# 3. FIRST-RUN PROVISIONING. Required once, to create the single owner. Setup
+#    refuses to run again as soon as a password exists, so rotate or remove this
+#    after provisioning. There is no default password and no bypass.
+OWNER_SETUP_TOKEN=replace-with-a-long-random-local-value
+
+# 4. Email delivery. `local` uses the development catcher, which only works when
+#    both APP_ORIGIN and the request are loopback. Use `resend` with the two
+#    secrets below to send real mail (never commit a real key).
+EMAIL_PROVIDER=local
+# RESEND_API_KEY=re_your_key_here
+# EMAIL_FROM=Arcade <verify@example.com>
+# EMAIL_REPLY_TO=owner@example.com
+
+# Local harness only: the password `npm run seed` and `npm run verify` use, and
+# the key the reset seam checks. Refused unless APP_ORIGIN is loopback.
+DEV_OWNER_SUB=dev-owner
+DEV_OWNER_EMAIL=owner@example.com
+DEV_OWNER_PASSWORD=replace-with-a-local-only-password-1!

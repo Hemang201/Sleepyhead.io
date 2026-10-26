@@ -1,0 +1,83 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 500" role="img" aria-label="Cover art coming soon — a designed placeholder, not a screenshot">
+  <!--
+    Missing-artwork cover.
+
+    Drawn in the site's own printed language: warm paper, ink rules, a charcoal
+    plate and four flat pastel shapes. It replaces an earlier neon-on-navy
+    placeholder that belonged to the design before the paper rework, and it is
+    deliberately a *designed* placeholder — the drawing says so in words, so a
+    visitor is never shown something that pretends to be a screenshot.
+
+    Colours are fixed rather than themed: the plate reads as a printed insert in
+    both the light and the dark edition.
+  -->
+  <defs>
+    <pattern id="fb-dots" width="20" height="20" patternUnits="userSpaceOnUse">
+      <circle cx="2" cy="2" r="1.1" fill="#242321" fill-opacity="0.16" />
+    </pattern>
+    <pattern id="fb-halftone" width="26" height="26" patternUnits="userSpaceOnUse">
+      <circle cx="3" cy="3" r="2.2" fill="#242321" fill-opacity="0.07" />
+    </pattern>
+    <clipPath id="fb-plate">
+      <rect x="96" y="88" width="608" height="216" />
+    </clipPath>
+  </defs>
+
+  <!-- The sheet: warm paper with the dot screen used across the site. -->
+  <rect width="800" height="500" fill="#f2ecdd" />
+  <rect width="800" height="500" fill="url(#fb-halftone)" />
+  <rect x="18" y="18" width="764" height="464" fill="none" stroke="#242321" stroke-opacity="0.28" />
+
+  <!-- Crop marks, the same drawing the cards use on real artwork. -->
+  <g stroke="#242321" stroke-width="2" stroke-opacity="0.55" fill="none">
+    <path d="M18 60V18h42" />
+    <path d="M740 18h42v42" />
+    <path d="M782 440v42h-42" />
+    <path d="M60 482H18v-42" />
+  </g>
+
+  <!-- The plate: a charcoal screen with a few flat shapes inside it. -->
+  <g clip-path="url(#fb-plate)">
+    <rect x="96" y="88" width="608" height="216" fill="#24231f" />
+    <rect x="96" y="88" width="608" height="216" fill="url(#fb-dots)" />
+    <circle cx="248" cy="196" r="42" fill="#bba8f2" />
+    <path d="M380 150l40 70h-80Z" fill="#e58b78" />
+    <rect x="470" y="170" width="48" height="48" fill="#9cb59a" />
+    <path d="M596 132v38M577 151h38" stroke="#f2ecdd" stroke-width="4" stroke-linecap="round" />
+    <path d="M596 238h72" stroke="#bba8f2" stroke-width="3" stroke-linecap="round" />
+    <path d="M596 254h44" stroke="#e58b78" stroke-width="3" stroke-linecap="round" />
+  </g>
+  <rect x="96" y="88" width="608" height="216" fill="none" stroke="#242321" stroke-width="3" />
+
+  <!-- A small controller drawn in ink, the site's own mark. -->
+  <g transform="translate(400 368)" fill="none" stroke="#242321" stroke-width="3" stroke-linejoin="round">
+    <path d="M-46-14c0-9 7-16 16-16h60c9 0 16 7 16 16l4 22c2 11-7 18-16 14l-10-4h-48l-10 4c-9 4-18-3-16-14Z" />
+    <path d="M-30-12v14M-37-5h14" stroke-linecap="round" />
+    <circle cx="24" cy="-8" r="4" fill="#242321" stroke="none" />
+    <circle cx="38" cy="-2" r="4" fill="#242321" stroke="none" />
+  </g>
+
+  <text
+    x="400"
+    y="436"
+    text-anchor="middle"
+    fill="#242321"
+    font-family="system-ui, -apple-system, 'Segoe UI', sans-serif"
+    font-size="24"
+    font-weight="700"
+    letter-spacing="-0.4"
+  >
+    Cover art coming soon
+  </text>
+  <text
+    x="400"
+    y="462"
+    text-anchor="middle"
+    fill="#6b675c"
+    font-family="ui-monospace, 'SFMono-Regular', Menlo, monospace"
+    font-size="12"
+    letter-spacing="2.2"
+  >
+    PLACEHOLDER — NO SCREENSHOT IS SHOWN
+  </text>
+</svg>

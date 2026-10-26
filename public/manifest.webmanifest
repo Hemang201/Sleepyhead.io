@@ -1,0 +1,31 @@
+{
+  "name": "Hemang Gupta — Indie Game Arcade",
+  "short_name": "HG Arcade",
+  "description": "Browser games and prototypes from independent developer Hemang Gupta: puzzle, physics and arcade experiments you can play instantly.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#070a16",
+  "theme_color": "#070a16",
+  "categories": ["games", "entertainment"],
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}
