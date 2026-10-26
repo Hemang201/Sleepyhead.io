@@ -47,7 +47,8 @@
 		// the sender (EMAIL_FROM) are set as Worker secrets — see docs/SECURITY.md
 		// and docs/DEPLOYMENT.md. With no email provider configured, the dashboard
 		// reports "unconfigured" and cannot be unlocked, by design.
-		"EMAIL_APP_NAME": "the arcade dashboard"
+		"EMAIL_APP_NAME": "the arcade dashboard",
+		"EMAIL_FROM": "onboarding@resend.dev"
 	},
 	"observability": {
 		"enabled": true
