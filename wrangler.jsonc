@@ -29,7 +29,7 @@
 		{
 			"binding": "DB",
 			"database_name": "sleepyhead-db",
-			"database_id": "0dbd22d8-9d65-411b-a11b-78fb1a648301 0",
+			"database_id": "0dbd22d8-9d65-411b-a11b-78fb1a648301",
 			"migrations_dir": "migrations"
 		}
 	],
