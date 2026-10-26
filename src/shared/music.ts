@@ -7,13 +7,16 @@
  *     metadata) is one JSON document in D1's `site_settings`, next to the
  *     appearance settings. It survives deployments and is read by the public
  *     site on every load.
- *   - **The audio file itself** is an object in R2. Only the storage key is in
- *     the document, so the database never carries a megabyte of audio.
+ *   - **The audio file itself** is an object in the media store (Get Pronto, or
+ *     the emulated R2 bucket in local development). Only the storage reference
+ *     is in the document, so the database never carries a megabyte of audio.
  *
  * When no file has ever been uploaded the document points at the track that
  * ships with the build (`/audio/ambient-theme.wav`), so a fresh deployment has
  * working music and the dashboard starts from a real, playable state.
  */
+
+import { isMediaStorageValue } from './media';
 
 export const MUSIC_LIMITS = {
   /** 12 MB is roughly 20 minutes of compressed audio — generous for a loop. */
@@ -36,7 +39,10 @@ export interface MusicConfig {
   title: string;
   /** Where the audio comes from. `none` is the state after a removal. */
   source: MusicSource;
-  /** R2 key of the uploaded file; null for the bundled track or no track. */
+  /**
+   * Storage reference of the uploaded file — a Get Pronto reference object or a
+   * legacy `music/` R2 key. Null for the bundled track or no track.
+   */
   storageKey: string | null;
   contentType: string | null;
   byteSize: number | null;
@@ -49,7 +55,11 @@ export interface MusicConfig {
 export interface PublicMusic {
   enabled: boolean;
   title: string;
-  /** Same-origin URL, or null when music is disabled or the file is missing. */
+  /**
+   * Where the browser should fetch the audio: the media CDN for an uploaded
+   * file, a same-origin asset for the bundled one. Null when music is disabled
+   * or the file is missing.
+   */
   url: string | null;
   updatedAt: string | null;
 }
@@ -79,10 +89,7 @@ function text(value: unknown, fallback: string, max: number): string {
  */
 export function normaliseMusic(value: unknown): MusicConfig {
   const source = typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : {};
-  const storageKey =
-    typeof source.storageKey === 'string' && /^music\/[A-Za-z0-9._-]+$/.test(source.storageKey)
-      ? source.storageKey
-      : null;
+  const storageKey = isMediaStorageValue(source.storageKey, 'music/') ? (source.storageKey as string) : null;
   const contentType =
     typeof source.contentType === 'string' && source.contentType.startsWith('audio/')
       ? source.contentType.slice(0, 60)
@@ -114,10 +121,14 @@ export function normaliseMusic(value: unknown): MusicConfig {
 }
 
 /**
- * The public projection. `available` is answered by the Worker after a
- * `HEAD` on the R2 object, so a deleted file never becomes a broken player.
+ * The public projection. `available` is answered by the Worker after a check on
+ * the stored object, so a deleted file never becomes a broken player.
+ *
+ * `deliveryUrl` is the media CDN address of an uploaded file. When it is absent
+ * the audio is streamed by this Worker from `/api/media/music`, which is how a
+ * row written before the CDN existed still plays.
  */
-export function publicMusic(config: MusicConfig, available: boolean): PublicMusic {
+export function publicMusic(config: MusicConfig, available: boolean, deliveryUrl: string | null = null): PublicMusic {
   if (!config.enabled) return { enabled: false, title: config.title, url: null, updatedAt: config.updatedAt };
   if (config.source === 'bundled') {
     return { enabled: true, title: config.title, url: BUNDLED_TRACK, updatedAt: config.updatedAt };
@@ -125,14 +136,16 @@ export function publicMusic(config: MusicConfig, available: boolean): PublicMusi
   if (config.source === 'none' || !config.storageKey) {
     return { enabled: false, title: config.title, url: null, updatedAt: config.updatedAt };
   }
-  // The Worker checks R2 before answering, so a deleted object becomes "no
-  // music" for the public site instead of a player that fails in the open.
+  // The Worker checks the stored object before answering, so a deleted file
+  // becomes "no music" for the public site instead of a player that fails in
+  // the open. A CDN address is stable per upload, so it needs no cache-buster.
   if (!available) return { enabled: false, title: config.title, url: null, updatedAt: config.updatedAt };
+  if (deliveryUrl) return { enabled: true, title: config.title, url: deliveryUrl, updatedAt: config.updatedAt };
   const version = config.updatedAt ? `?v=${encodeURIComponent(config.updatedAt)}` : '';
   return { enabled: true, title: config.title, url: `${MUSIC_MEDIA_PATH}${version}`, updatedAt: config.updatedAt };
 }
 
-/** The storage key for a newly uploaded file. Always inside `music/`. */
+/** The storage key for a newly uploaded file in the R2 store. Always inside `music/`. */
 export function musicStorageKey(extension: string): string {
   return `music/${crypto.randomUUID()}.${extension}`;
 }

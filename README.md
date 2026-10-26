@@ -52,8 +52,8 @@ Two rules shape the design and the code:
   tooling reports no site for this workspace). [§11](#11-production-hosting-and-deployment)
   documents the two supported paths and what is still missing.
 - ⬜ **Public password reset.** Deliberately absent; see [§9](#9-authentication-and-administration).
-- ⬜ **Offline gameplay.** The service worker caches the app shell only, never
-  uploaded builds.
+- ⬜ **Offline gameplay.** The service worker caches the app shell only; games
+  come from itch.io and are never cached.
 
 ## 1. Technology stack
 
@@ -73,11 +73,10 @@ not from a template. Installed versions were read from this checkout.
 | Worker bundler | esbuild, invoked by `scripts/build-worker.mjs` | 0.28.2 |
 | Runtime (backend) | Cloudflare Workers (`workerd`); `compatibility_date` `2026-10-01`, flag `nodejs_compat` | wrangler 4.151.0 |
 | Database | Cloudflare D1 (SQLite); schema in `migrations/` | via `DB` binding |
-| Object storage | Cloudflare R2 (`FILES` binding), bucket `hg-arcade-files` | via `FILES` binding |
+| Image and audio storage | Get Pronto REST API (presign → upload → confirm), called with `fetch`; no SDK dependency | free plan: 5 GB storage, 10 GB/month, 10 MB per file |
 | Static assets | Vite output in `dist/`, served by the Worker through the `ASSETS` binding | — |
 | Authentication | The app's own: login address + password (PBKDF2-SHA256, 210 000 iterations) + a six-digit emailed code, D1-backed sessions in a signed cookie — no third-party identity provider | — |
 | Transactional email | Resend REST API called with `fetch` (no SDK dependency), plus a loopback catcher for local development | — |
-| Legacy ZIP handling | `fflate` in the Worker, retained for build records created before the itch.io workflow | 0.8.3 |
 | Unit tests | Vitest (`node` environment) | 5.0.5 |
 | Browser checks | `playwright-core` driving an installed Chromium-family browser | 1.64.1 |
 | Linting | ESLint flat config + `typescript-eslint` + `eslint-plugin-react-hooks` | 10.12.0 / 8.71.2 / 7.1.1 |
@@ -98,8 +97,6 @@ outside the app's own authorization code. `worker/app.ts` routes, in this order:
 (`/api/catalogue`, `/api/catalogue/<slug>`, `/api/media/artwork|screenshot/*`),
 `/api/settings`, `/api/content/about|contact|social`, `/api/music`,
 `/api/media/content/avatar`, `/sitemap.xml`, the owner API under `/api/admin/**`,
-and the legacy `/play/**` route for locally stored builds (kept for rows created
-before the switch to itch.io; the dashboard no longer offers that upload path),
 a JSON 404 for any other `/api/*` path, and finally the static build from `dist/`
 through the `ASSETS` binding.
 
@@ -107,16 +104,16 @@ through the `ASSETS` binding.
 flowchart TD
   B["Browser — React SPA (dist/)"]
   W["Cloudflare Worker<br/>worker/index.ts → worker/app.ts"]
-  D["D1 (SQLite)<br/>games · builds · build_files<br/>site_content · site_settings<br/>owner_auth · auth_sessions · security_events"]
-  R["R2 bucket FILES<br/>builds/&lt;gameId&gt;/&lt;buildId&gt;/…<br/>artwork/… · content/avatar/…"]
+  D["D1 (SQLite)<br/>games · site_content · site_settings<br/>owner_auth · auth_sessions · security_events"]
+  R["Get Pronto CDN<br/>cover art · screenshots<br/>portrait · audio track"]
   S["Static assets (ASSETS binding)<br/>hashed JS/CSS · icons · manifest · sw.js"]
   E["Resend API (HTTPS)"]
 
   B -->|"GET /api/catalogue, /api/content/*, /api/settings"| W
-  B -->|"iframe: /play/&lt;slug&gt;/…"| W
+  B -->|"iframe: itch.io/embed-upload/…"| I["itch.io (the game itself)"]
   B -->|"/api/admin/* (password + emailed code, session cookie)"| W
   W -->|"SQL"| D
-  W -->|"objects"| R
+  W -->|"presign · PUT · confirm"| R
   W -->|"fallback: env.ASSETS.fetch"| S
   W -->|"verification codes"| E
 ```
@@ -163,10 +160,12 @@ from the site's own origin (`isSameOriginRequest`). Details in
 - **The embed id cannot be derived from the project URL.** It identifies the
   uploaded HTML5 file, so the dashboard asks for both and explains where the
   second one comes from. A listing cannot be published until both are saved.
-- **Cover art and screenshots stay on this site.** Images go to R2 as
-  `artwork/<gameId>/…`, are identified by magic bytes (PNG, JPEG, WebP, GIF,
-  AVIF), capped at 8 MB each, and served from `/api/media/artwork|screenshot/*`.
-  Nothing is fetched from itch.io automatically.
+- **Cover art and screenshots stay on your own storage.** Images are identified
+  by magic bytes (PNG, JPEG, WebP, GIF, AVIF), capped at 8 MB each (inside Get
+  Pronto's 10 MB free-plan ceiling), uploaded by the Worker with a secret key and
+  served from the media CDN. A row written before the move keeps its
+  `/api/media/artwork|screenshot/*` address, which now redirects. Nothing is
+  fetched from itch.io automatically.
 - **The player is a cross-origin frame.** It uses `https://itch.io/embed-upload/…`
   with `allow="fullscreen; gamepad; autoplay"` and a sandbox that grants a game
   its own scripts, storage, pointer lock and popups. The itch.io origin boundary
@@ -174,12 +173,12 @@ from the site's own origin (`isSameOriginRequest`). Details in
   session. The player never claims more than it can know — a cross-origin frame
   reports `load` even for an error page, so the direct itch.io link is always on
   screen and the timeout explains a stalled embed.
-- **Legacy builds.** Rows and endpoints from the previous ZIP workflow
-  (`builds/…`, `/play/…`) are retained so existing data is not destroyed, but the
-  dashboard no longer uploads or previews them and the public player ignores
-  them. Deleting a game still removes its stored objects.
-- Deploying the frontend alone is therefore not enough: without `DB` and `FILES`
-  bindings there is no catalogue and no artwork.
+- **The local build workflow is gone.** The ZIP uploader, the `builds` API and
+  the `/play/**` routes were removed once every listing played from itch.io. The
+  `builds` and `build_files` tables stay in D1 — dropping them would delete data
+  for no gain — but nothing reads or writes them.
+- Deploying the frontend alone is not enough: without `DB` there is no
+  catalogue, and without `GETPRONTO_API_KEY` the dashboard cannot store an image.
 
 ### The About/Contact/Social editor
 
@@ -232,14 +231,17 @@ as a public contact value (`422 email_conflict`).
   ships the driver, not a browser; the default `BROWSER_PATH` in
   `scripts/verify.mjs` and `scripts/seed-dev.mjs`-adjacent scripts is Brave on
   Windows — override it with `BROWSER_PATH=/path/to/chrome`.
-- No local database server is required: `wrangler dev` emulates D1 and R2 in
-  `.wrangler/state` (gitignored, disposable). Docker is optional; the included
-  image runs the same local Worker preview on port `8787`.
+- No local database server is required: `wrangler dev` emulates D1 and a local
+  file bucket in `.wrangler/state` (gitignored, disposable). Docker is optional;
+  the included image runs the same local Worker preview on port `8787`.
 
 **Production / owner features:**
 
-- A **Cloudflare account** (Workers, D1, R2) — or the Freebuff Sites tooling, see
-  [§11](#11-production-hosting-and-deployment).
+- A **Cloudflare account** (Workers, D1) — or the Freebuff Sites tooling, see
+  [§11](#11-production-hosting-and-deployment). No R2 bucket is needed.
+- A **Get Pronto account** (free) with a secret API key, set as
+  `GETPRONTO_API_KEY`. Without it the site runs, but every upload is refused with
+  `503 unconfigured`.
 - **No external identity provider.** The owner's credentials live in this site's
   own database; there is no third-party sign-in to configure.
 - An **administrator login address**, a **code delivery address** (they may differ)
@@ -254,7 +256,8 @@ as a public contact value (`422 email_conflict`).
 ```
 worker/
   index.ts            Worker entry: createApp() → routing → static assets
-  app.ts              the API: catalogue, content, media, admin, builds, sitemap
+  app.ts              the API: catalogue, content, media, admin, sitemap
+  lib/media-store.ts  uploads to Get Pronto (or the local bucket) and deletes by reference
   lib/                db (queries) · owner (identity) · owner-security (2nd factor, sessions)
                       email (provider selection + templates) · crypto · content (defaults/validation)
 src/
@@ -296,8 +299,9 @@ rename them.
 
 | Variable | Purpose | Required | Where the value comes from | Local | Production |
 | --- | --- | --- | --- | --- | --- |
-| `DB` | D1 binding (games, builds, content, auth) | yes | `wrangler.jsonc` | emulated by `wrangler dev` | created by hosting / `wrangler d1 create` |
-| `FILES` | R2 binding (builds, artwork, avatar) | yes | `wrangler.jsonc` | emulated | created by hosting / `wrangler r2 bucket create` |
+| `DB` | D1 binding (games, content, auth) | yes | `wrangler.jsonc` | emulated by `wrangler dev` | created by hosting / `wrangler d1 create` |
+| `GETPRONTO_API_KEY` | Secret key (`pronto_sk_…`) for cover art, screenshots, the portrait and the audio track | yes for uploads | Get Pronto dashboard → API keys | optional; omitted ⇒ local bucket | Worker secret |
+| `FILES` | Optional object bucket. Only used when `GETPRONTO_API_KEY` is absent (local development, or a deployment that still has a bucket) | no | `wrangler.jsonc` | emulated | not needed |
 | `ASSETS` | Static build binding | yes | `wrangler.jsonc` | served from `dist/` | uploaded build output |
 | `APP_ORIGIN` | The site's own origin; used for OIDC callbacks, cookie scope, origin checks and the local-seam guard | yes in production | hosting platform injects it; locally `.dev.vars` | `.dev.vars` (`http://127.0.0.1:8787`) | injected |
 | `OWNER_LOGIN_EMAIL` | **Private** administrator login address (what is typed at sign-in) | yes for `/admin` | you; Worker secret | `.dev.vars` | secret |
@@ -310,10 +314,6 @@ rename them.
 | `EMAIL_PROVIDER` | `auto` (default) · `resend` · `local` · `none` | optional | — | `local` for the catcher | `resend` or unset |
 | `EMAIL_REPLY_TO` | Reply-To on verification mail | optional | you | — | secret/var |
 | `EMAIL_APP_NAME` | Name used in the email subject/body | optional | `wrangler.jsonc` `vars` | from config | from config |
-| `MAX_BUILD_BYTES` | Legacy build cap (no longer used by new listings) | optional | `wrangler.jsonc` `vars` (512 MB) | from config | from config |
-| `MAX_FILE_BYTES` | Per-file cap (64 MB) | optional | `wrangler.jsonc` | from config | from config |
-| `MAX_BUILD_FILES` | File-count cap (3 000) | optional | `wrangler.jsonc` | from config | from config |
-| `MAX_ZIP_BYTES` | Legacy ZIP cap (25 MB) | optional | `wrangler.jsonc` | from config | from config |
 | `DEV_OWNER_SUB` | Development owner seam (identity for `x-dev-owner`) | local only | you | `.dev.vars` | **must not be set** |
 | `DEV_OWNER_EMAIL` | Fallback authentication address for seed/verify | local only | you | `.dev.vars` | **must not be set** |
 | `DEV_OWNER_PASSWORD` | Password used by the seed script | local only | you | `.dev.vars` | **must not be set** |
@@ -349,7 +349,7 @@ npm ci
 cp .dev.vars.example .dev.vars
 ```
 
-Then start the application, which is one process for API, auth, builds and assets:
+Then start the application, which is one process for API, auth, media and assets:
 
 ```bash
 # terminal 1 — the whole application on http://127.0.0.1:8787
@@ -364,9 +364,9 @@ npm run seed
 
 Open **<http://127.0.0.1:8787>**.
 
-- `npm run dev:full` is `wrangler dev`: it emulates D1 and R2 under
-  `.wrangler/state`, so no database server is required — and it starts whether or
-  not the schema exists yet.
+- `npm run dev:full` is `wrangler dev`: it emulates D1 and a local file store
+  under `.wrangler/state`, so no database server or storage account is required —
+  and it starts whether or not the schema exists yet.
 - `npm run db:migrate` (`wrangler d1 migrations apply DB --local`) only applies new
   files and prints `No migrations to apply!` once the schema is current.
 - `npm run seed` installs fixtures **through the running admin API**, so it needs
@@ -381,11 +381,11 @@ Open **<http://127.0.0.1:8787>**.
 ### Frontend-only mode (limited)
 
 ```bash
-npm run dev:full   # terminal 1 — API, D1, R2, auth
+npm run dev:full   # terminal 1 — API, D1, local file store, auth
 npm run dev       # terminal 2 — Vite + HMR on http://localhost:5173
 ```
 
-`npm run dev` proxies `/api` and `/play` to `http://localhost:8787`
+`npm run dev` proxies `/api` to `http://localhost:8787`
 (`vite.config.ts`), so with both running you get hot reload **and** a working
 backend. With Vite alone the app shell renders but the catalogue, player and admin
 calls fail — it is not a usable preview of the product.
@@ -398,7 +398,7 @@ request or `APP_ORIGIN` is not loopback.
 
 | Command | What it actually does |
 | --- | --- |
-| `npm run dev:full` | Local application (Worker + D1/R2 emulation) on `127.0.0.1:8787`. This is the closest local equivalent of production. |
+| `npm run dev:full` | Local application (Worker + D1 + local file store) on `127.0.0.1:8787`. This is the closest local equivalent of production. |
 | `npm run dev` | Vite dev server with HMR on `:5173`, API proxied to `:8787`. |
 | `npm run build` | `vite build` → `dist/` (hashed assets, icons, manifest, `sw.js`, `robots.txt`). **Does not type-check.** |
 | `npm run build:worker` | Bundles `worker/index.ts` with esbuild → `dist-worker/index.js` (single ESM file, dependencies inlined). |
@@ -546,9 +546,8 @@ Tables:
 | Table | Holds |
 | --- | --- |
 | `admins` | The owner identity (`sub`, `email`). Written once, by first-run provisioning; no route adds a second row. |
-| `games` | One row per game: slug, copy, genres/tags (JSON), controls, status, `listed`, `featured`, artwork keys, `active_build_id`, timestamps |
-| `builds` | One row per upload: version, status, `entry_path`, file count/size, notes |
-| `build_files` | The file list + MIME type per build (the index R2 is read through) |
+| `games` | One row per game: slug, copy, genres/tags (JSON), controls, status, `listed`, `featured`, storage references for cover art/screenshots, itch.io addresses, timestamps |
+| `builds` / `build_files` | **Legacy and unused.** Left in place so the migration history stays valid and no data is destroyed; nothing reads or writes them since games moved to itch.io. |
 | `site_content` | `draft` + `published` JSON per key (`about`, `contact`) |
 | `site_settings` | Live appearance settings |
 | `app_secrets` | Generated cookie-signing secret (server-side only) |
@@ -558,31 +557,39 @@ Tables:
 | `security_events` | Audit trail shown on Account security |
 | `upload_events` | Upload audit trail + rate-limit counters |
 
-**Object storage: Cloudflare R2**, binding `FILES`:
+**Object storage: Get Pronto** (`worker/lib/media-store.ts`), free plan — 5 GB
+stored, 10 GB/month delivered, **10 MB per file** (the application caps artwork at
+8 MB, so an image cannot hit the provider limit). The bucket also keeps an
+equivalent layout for local development:
 
 ```
-builds/<gameId>/<buildId>/<path>     legacy local builds (no longer uploaded by the dashboard)
 artwork/<gameId>/<kind>-<uuid>.<ext> cover art: thumbnail | banner
 artwork/<gameId>/shot-<uuid>.<ext>   screenshots
 content/avatar/<uuid>.<ext>          About portrait
 music/<uuid>.<wav|mp3|ogg|m4a|flac>  background track uploaded in the dashboard
 ```
 
-The database stores the *keys*, never the bytes; deleting a game deletes its rows,
-its `build_files`, its R2 objects and its artwork in batches (500 objects per
-call). Build URLs are stable across replacements, so build files are served
-`no-cache` (HTML) or `max-age=0, must-revalidate` with an object `ETag` — a new
-build is visible immediately instead of serving a stale script.
+The upload is the documented three-step flow, called from the Worker:
+`POST /v1/upload/presign` → `PUT {uploadUrl}` with the bytes →
+`POST /v1/upload/confirm`. The confirmed file's `id` and CDN address are then
+stored — as a JSON reference in the same `thumbnail_key` / `banner_key` /
+screenshots / `avatarKey` / `storageKey` column that used to hold an object key
+(see `src/shared/media.ts`). A plain string in one of those columns is read as a
+legacy bucket key, so nothing had to be migrated.
+
+Deleting a replaced image or track calls `DELETE /v1/files/:id`; a game purge
+does the same for its cover art and screenshots. There is no prefix sweep any
+more, so nothing outside the named references can be deleted.
 
 **Backups.** D1 supports `wrangler d1 export <db> --output=backup.sql` (schema +
-data) and time-travel/bookmark restores on paid plans; R2 objects can be copied with
-`wrangler r2 object get` or an R2 lifecycle/replication rule. Neither is configured
-here — treat "a backup exists" as outstanding work until you run one.
+data). Uploaded images and audio live in the Get Pronto dashboard, which lists
+every file and lets you download it. Neither a D1 export nor an asset download is
+configured here — treat "a backup exists" as outstanding work until you run one.
 
-**Local vs production.** Locally, D1 and R2 are Miniflare emulations in
-`.wrangler/state`; deleting that directory resets everything (and `npm run seed`
-reinstalls the fixtures). In production they are real managed resources with their
-own data. There is no shared storage between the two.
+**Local vs production.** Locally, D1 and the fallback file store are Miniflare
+emulations in `.wrangler/state`; deleting that directory resets everything (and
+`npm run seed` reinstalls the fixtures). With `GETPRONTO_API_KEY` set, uploads go
+to the real account instead. There is no shared storage between the two.
 
 `localStorage` is **not** a data store for the site: it only holds UI preferences
 (theme, favourites, recently played, filter state, banner acknowledgement), listed
@@ -717,9 +724,9 @@ listing and the frame around them. The dashboard never accepts a ZIP any more.
 - Touch controls appear only if the game implements them; itch.io supplies its
   own on-screen controls for many mobile games.
 
-The legacy ZIP endpoints (`POST /api/admin/games/:id/builds`, `/play/**`) still
-exist for data created before this change, but the dashboard no longer offers
-them and the public player never uses a local build.
+There are no local-build endpoints any more: `POST /api/admin/games/:id/builds`
+and `/play/**` were removed with the ZIP workflow. Old build rows in D1 are simply
+unused.
 
 ## 11. Production hosting and deployment
 
@@ -735,16 +742,17 @@ The architecture is one Worker plus two managed resources:
 | Frontend (`dist/`) | the Worker's `ASSETS` binding — same deployable | `npm run build` |
 | API, owner auth, game serving | the Worker (`worker/index.ts`) | `npm run build:worker` / `wrangler deploy` |
 | Database | Cloudflare D1 (`DB`) | hosting platform, or `wrangler d1 create` |
-| Uploaded builds + artwork | Cloudflare R2 (`FILES`) | hosting platform, or `wrangler r2 bucket create` |
+| Images + audio | Get Pronto (secret `GETPRONTO_API_KEY`) | external account, free plan |
 | Email delivery | Resend (secrets) | external account |
 
 ### Path A — Freebuff Sites (this environment's tooling)
 
 The workspace carries a project id in `.freebuff/project-id`; deployment is done
-through the Sites tools, which create the D1 database and R2 bucket, inject
-`APP_ORIGIN` (and, if you use Sign in with Freebuff for anything else, its client
-variables — this app does not), and upload prebuilt output. Deploy a preview first, check it, then publish production, then run the
-migrations against the deployed database.
+through the Sites tools, which create the D1 database, inject `APP_ORIGIN` (and,
+if you use Sign in with Freebuff for anything else, its client variables — this app
+does not), and upload prebuilt output. Deploy a preview first, check it, then
+publish production, then run the migrations against the deployed database. Add
+`GETPRONTO_API_KEY` under Sites → Secrets before uploading any artwork.
 
 > 🟡 **Not verified here:** the Sites tooling reported no site for this workspace
 > in this session, and its custom-domain/secret handling is not documented in this
@@ -760,10 +768,11 @@ a normal Worker deployment.
 # 1. one-time resource creation
 npx wrangler login
 npx wrangler d1 create hg-arcade          # copy the returned database_id…
-npx wrangler r2 bucket create hg-arcade-files
 
 # 2. …and put it in wrangler.jsonc (currently an all-zeros placeholder)
 #    "database_id": "<the id wrangler printed>"
+#    If you deploy this way, also delete the `r2_buckets` block: no bucket is
+#    needed and `wrangler deploy` fails if the named one does not exist.
 
 # 3. schema for the deployed database
 npm run db:migrate:remote
@@ -774,6 +783,7 @@ npx wrangler secret put OWNER_OTP_EMAIL        # optional: codes go elsewhere
 npx wrangler secret put OWNER_SETUP_TOKEN      # first run only; delete it after
 npx wrangler secret put RESEND_API_KEY
 npx wrangler secret put EMAIL_FROM
+npx wrangler secret put GETPRONTO_API_KEY     # from app.getpronto.io → API keys
 
 # 5. build and deploy
 npm run build:all
@@ -793,7 +803,7 @@ curl -sSI https://your-domain.example/ | head -20        # 200 + HTML, security 
 curl -sS  https://your-domain.example/api/health
 curl -sS  https://your-domain.example/api/catalogue | head -c 200
 curl -sS -o /dev/null -w '%{http_code}\n' https://your-domain.example/api/admin/games   # 401
-curl -sS -o /dev/null -w '%{http_code}\n' https://your-domain.example/play/<slug>/       # 200
+curl -sS -o /dev/null -w '%{http_code}\n' https://your-domain.example/api/music           # 200
 BASE_URL=https://your-domain.example npm run verify      # public checks; owner checks need the seam
 ```
 
@@ -811,8 +821,9 @@ rollback never removes a game — but a migration is forward-only in practice, s
 write them additively (`0003_*.sql`) rather than editing `0001`/`0002`.
 
 **What is still required before this is a live site:** a real `database_id`, the
-R2 bucket, the four secrets (`OWNER_LOGIN_EMAIL`, `OWNER_OTP_EMAIL`,
-`RESEND_API_KEY`, `EMAIL_FROM`), `APP_ORIGIN`, and a domain ([§12](#12-custom-domain-setup)).
+five secrets (`OWNER_LOGIN_EMAIL`, `OWNER_OTP_EMAIL`, `RESEND_API_KEY`,
+`EMAIL_FROM`, `GETPRONTO_API_KEY`), `APP_ORIGIN`, and a domain
+([§12](#12-custom-domain-setup)).
 
 ## 12. Custom-domain setup
 
@@ -881,13 +892,12 @@ terminates TLS itself.
 
 ### A separate game origin
 
-Games are served from the **same** origin under `/play/<slug>/…`, and are isolated
-by the sandbox rather than by a different hostname, so no second domain is
-required. If you do want a separate origin, a Worker can be attached to a
-subdomain (`games.your-domain.example`) exactly like the apex; the app's own
-`playUrl` is origin-relative, so moving games to another host is a code change, not
-a configuration toggle. Limits Cloudflare documents: 100 custom domains per zone,
-1 000 routes per zone, 1 000 routed zones per Worker.
+Games are **not** served from this origin: they run in an itch.io frame, which is
+why the site needs no game-hosting domain at all and why a game cannot read this
+site's DOM, cookies or admin session. Artwork and audio are delivered from Get
+Pronto's CDN, and the site's own pages stay on one Worker. Limits Cloudflare
+documents: 100 custom domains per zone, 1 000 routes per zone, 1 000 routed zones
+per Worker.
 
 [Worker limits](https://developers.cloudflare.com/workers/platform/limits/)
 
@@ -952,7 +962,7 @@ Implemented and covered by the browser suite or unit tests:
   at the edge (the app's own limits are in-D1, per owner).
 - ⬜ Automated dependency updates (no Dependabot/Renovate config) — run
   `npm outdated` and `npm audit` deliberately.
-- ⬜ Automated database/R2 backups (see [§8](#8-database-and-persistent-storage)).
+- ⬜ Automated database and media backups (see [§8](#8-database-and-persistent-storage)).
 - ⬜ Multi-user roles: the model is deliberately single-owner.
 
 This list is a description of protections, not a claim that the site is
@@ -1146,7 +1156,7 @@ shift at any width.
 | **Back to top** | `FloatingChrome` | Brutalist outline square with a hard shadow, appears after 600 px, smooth-scrolls unless reduced motion is set, labelled, and lifted above the privacy banner — or hidden on small screens when the banner is up. |
 | **Loading indicators** | `Spinner`, button and panel states | One family: an outlined rotating ring (accent head, ink track), a square dot sequence and a short bar. Uploads show measured progress from `XMLHttpRequest`; nothing invents a percentage, and a submitting button is disabled rather than spinner-only. |
 | **Privacy notice** | `CookieBanner` | A compact printed card, not a modal: ink frame, hard shadow, accent edge, Accept/Decline, stored choice, and a link to `/privacy`. The copy claims only what the code does — the site uses no analytics or advertising, so none is described. |
-| **Ambient music** | `src/lib/ambient.ts`, `src/components/AmbientMusic.tsx`, `src/shared/music.ts`, `worker/lib/content.ts` | One `<audio>` for the whole app, created the first time a visitor asks for sound and never duplicated across routes. Loop, lazy (`preload="none"`), 650 ms volume fade, remembered in `hg.music.v1`, with a real volume slider stored separately in `hg.music.volume.v1`. The track is configured in the dashboard, stored in D1 + R2 and streamed from `/api/media/music`; the bundled `public/audio/ambient-theme.wav` is the fallback. Nothing plays on load, ever: a remembered preference shows as `paused` ("Resume") and the first click starts it, a refused `play()` becomes the honest `blocked` state, and a missing or unplayable file becomes `error`. |
+| **Ambient music** | `src/lib/ambient.ts`, `src/components/AmbientMusic.tsx`, `src/shared/music.ts`, `worker/lib/content.ts` | One `<audio>` for the whole app, created the first time a visitor asks for sound and never duplicated across routes. Loop, lazy (`preload="none"`), 650 ms volume fade, remembered in `hg.music.v1`, with a real volume slider stored separately in `hg.music.volume.v1`. The track is configured in the dashboard, its reference stored in D1 and the file on the media CDN (or streamed from `/api/media/music` for a row written earlier); the bundled `public/audio/ambient-theme.wav` is the fallback. Nothing plays on load, ever: a remembered preference shows as `paused` ("Resume") and the first click starts it, a refused `play()` becomes the honest `blocked` state, and a missing or unplayable file becomes `error`. |
 | **Dashboard** | `src/styles/admin.css` | The same language at a lower volume. Brutalism is limited to four places a person needs to find fast — the active nav item, the primary submit action, the publishing stepper and the status stat cards. Tables, forms and panels stay flat and quiet; dialogs and toasts are ink-framed with hard shadows, and no admin surface uses glass or blur. |
 
 ### Ambient music
@@ -1173,17 +1183,19 @@ action is authorised again on the Worker and recorded in the audit trail.
   last change) is one JSON row in D1's `site_settings` under key `music`, next to
   the appearance settings. It applies immediately — there is no draft/publish
   step, because a soundtrack is a setting rather than page copy.
-- **The audio bytes live in R2**, under `music/<uuid>.<ext>` in the same `FILES`
-  bucket as builds and artwork. Replacing or removing a track deletes the
-  previous object; only the `music/` prefix is ever touched. The uploader sniffs
-  the real format from the leading bytes (WAV, MP3, OGG, M4A, FLAC), caps the
-  file at 12 MB, and never trusts the browser's declared content type.
+- **The audio bytes live in the media store** (`music/<uuid>.<ext>`), next to the
+  artwork and the portrait. Replacing or removing a track deletes the previous
+  file. The uploader sniffs the real format from the leading bytes (WAV, MP3, OGG,
+  M4A, FLAC), caps the file at 12 MB — or at the store's 10 MB free-plan limit,
+  whichever is lower, which the dashboard is told before it accepts a file — and
+  never trusts the browser's declared content type.
 - **Visitors read `/api/music`**, which returns only `{enabled, title, url,
-  updatedAt}` — never the storage key — and checks the R2 object exists before
-  offering it. The URL is `/api/media/music?v=<updatedAt>` and that route streams
-  the object with `Accept-Ranges`/`206` support, so a long track starts without
-  downloading all of it. A missing object becomes "no music" for the public site
-  and a warning in the dashboard, not a broken player.
+  updatedAt}` — never the storage reference — and checks the file still exists
+  before offering it. An uploaded track is delivered straight from the CDN; a row
+  written before the move plays through `/api/media/music`, which streams with
+  `Accept-Ranges`/`206` support or redirects to the CDN. A missing file becomes
+  "no music" for the public site and a warning in the dashboard, not a broken
+  player.
 - **A change reaches visitors on their next page load.** An already-open page
   keeps playing the track it started with, so replacing a file never cuts anyone
   off mid-listen; there is no realtime channel.

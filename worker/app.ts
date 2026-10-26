@@ -1,5 +1,3 @@
-import { unzipSync } from 'fflate';
-
 import { CHALLENGE_PURPOSES, PASSWORD_MAX_LENGTH } from '../src/shared/owner-security';
 import {
   maskEmail,
@@ -45,7 +43,6 @@ import {
 import {
   ACCENTS,
   GAME_STATUSES,
-  isActivatableBuild,
   isCatalogueGame,
   isPubliclyVisible,
   latestGameUpdate,
@@ -61,8 +58,9 @@ import {
 import {
   avatarKeyFor,
   discardDoc,
-  isMusicKey,
-  pruneAvatars,
+  isMusicStorage,
+  musicDeliveryUrl,
+  retireAvatars,
   publicAbout,
   publicContact,
   publicSocial,
@@ -78,66 +76,53 @@ import {
   writeDraft,
   writeMusic,
 } from './lib/content';
+import { BUNDLED_TRACK, MUSIC_LIMITS, MUSIC_MEDIA_PATH, publicMusic, type MusicConfig } from '../src/shared/music';
 import {
-  BUNDLED_TRACK,
-  MUSIC_LIMITS,
-  MUSIC_MEDIA_PATH,
-  musicStorageKey,
-  publicMusic,
-  type MusicConfig,
-} from '../src/shared/music';
+  deleteMedia,
+  mediaExists,
+  mediaLimitBytes,
+  mediaProvider,
+  mediaUrl,
+  MediaStoreError,
+  putMedia,
+} from './lib/media-store';
+import { serialiseMediaRef, type MediaRef } from '../src/shared/media';
 import {
-  activateBuild,
-  buildSummary,
-  buildsForGame,
-  countEventsSince,
-  createBuild,
-  deleteBuildRow,
   deleteGame,
   getOwnerAuth,
-  getBuildFiles,
-  getBuildRow,
+  getAdminGame,
   getGameRow,
-  getGameWithBuilds,
   insertGame,
   listAllGames,
   listPublicGames,
-  markBuildStatus,
   nowIso,
   parseJson,
-  recordBuildFile,
   recordEvent,
   recentlyUpdated,
   setArtworkKey,
   setScreenshotKeys,
   slugExists,
   toPublicGame,
-  touchGame,
   updateGame,
-  type BuildRow,
   type GameRow,
   type SessionRow,
   type GameWrite,
 } from './lib/db';
-import {
-  contentTypeFor,
-  decodePathSegment,
-  detectEntryPath,
-  extensionOf,
-  isHtmlPath,
-  safeBuildPath,
-  sniffImage,
-  stripSingleRoot,
-  fileCountExceedsLimit,
-  type ArchiveEntry,
-} from '../src/shared/build-files';
+import { decodePathSegment, sniffImage } from '../src/shared/media-files';
 
 /* ------------------------------------------------------------------- types */
 
 export interface Env {
   ASSETS: { fetch(request: Request): Promise<Response> };
   DB: D1Database;
-  FILES: R2Bucket;
+  /**
+   * Optional. New uploads go to Get Pronto; this bucket is only used by the
+   * local emulation and by any deployment that already had one, so the Worker
+   * starts and serves the whole site without it.
+   */
+  FILES?: R2Bucket;
+  /** Get Pronto secret key (`pronto_sk_…`). Server-side only. */
+  GETPRONTO_API_KEY?: string;
   APP_ORIGIN?: string;
   /** The administrator's login identity. Server-side only. */
   OWNER_LOGIN_EMAIL?: string;
@@ -159,48 +144,15 @@ export interface Env {
   EMAIL_REPLY_TO?: string;
   EMAIL_APP_NAME?: string;
   RESEND_API_KEY?: string;
-  MAX_BUILD_BYTES?: string;
-  MAX_FILE_BYTES?: string;
-  MAX_BUILD_FILES?: string;
-  MAX_ZIP_BYTES?: string;
 }
-
-interface Limits {
-  maxBuildBytes: number;
-  maxFileBytes: number;
-  maxBuildFiles: number;
-  maxZipBytes: number;
-}
-
-const DEFAULTS: Limits = {
-  maxBuildBytes: 512 * 1024 * 1024,
-  maxFileBytes: 64 * 1024 * 1024,
-  maxBuildFiles: 3000,
-  maxZipBytes: 25 * 1024 * 1024,
-};
 
 const MAX_ARTWORK_BYTES = 8 * 1024 * 1024;
 const MAX_SCREENSHOTS = 12;
 
-const MAX_BUILD_INITS_PER_HOUR = 40;
-const MAX_UPLOAD_EVENTS_PER_HOUR = 40000;
 const MAX_JSON_BODY_BYTES = 128 * 1024;
 const MAX_AUTH_EMAIL_LENGTH = 160;
 const MAX_CHALLENGE_ID_LENGTH = 128;
 const MAX_SETUP_TOKEN_LENGTH = 512;
-
-function limits(env: Env): Limits {
-  const read = (value: string | undefined, fallback: number) => {
-    const parsed = Number(value);
-    return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
-  };
-  return {
-    maxBuildBytes: read(env.MAX_BUILD_BYTES, DEFAULTS.maxBuildBytes),
-    maxFileBytes: read(env.MAX_FILE_BYTES, DEFAULTS.maxFileBytes),
-    maxBuildFiles: read(env.MAX_BUILD_FILES, DEFAULTS.maxBuildFiles),
-    maxZipBytes: read(env.MAX_ZIP_BYTES, DEFAULTS.maxZipBytes),
-  };
-}
 
 /* --------------------------------------------------------------- responses */
 
@@ -213,6 +165,21 @@ function json(data: unknown, init: ResponseInit = {}): Response {
 function fail(status: number, error: string, message: string, fields?: Record<string, string>): Response {
   const body: ApiError = fields ? { error, message, fields } : { error, message };
   return json(body, { status, headers: { 'Cache-Control': 'no-store' } });
+}
+
+/**
+ * Maps a storage failure onto the API's error shape.
+ *
+ * The message comes from the store, which never includes the request body, the
+ * object key or the API key — only what went wrong and what to do about it.
+ */
+function storageFailure(error: unknown): Response {
+  if (error instanceof MediaStoreError) {
+    const status =
+      error.code === 'too_large' ? 413 : error.code === 'rate_limited' ? 429 : error.code === 'unconfigured' ? 503 : 502;
+    return fail(status, error.code, error.message);
+  }
+  return fail(502, 'storage_failed', 'That file could not be stored. Try again in a moment.');
 }
 
 function noStore(response: Response): Response {
@@ -289,72 +256,11 @@ async function serveGame(request: Request, env: Env, slug: string): Promise<Resp
   if (row.status === 'draft' || row.status === 'archived') return fail(404, 'not_found', 'No game with that address.');
   if (!isPubliclyVisible(row.status, row.listed === 1)) return fail(404, 'not_found', 'No game with that address.');
 
-  const builds = await buildsForGame(env.DB, row.id);
-  const game = toPublicGame(row, builds);
+  const game = toPublicGame(row);
   // The public game route follows the catalogue: an announcement or a
-  // published row without a working build has no public page either.
+  // published row without a playable itch.io player has no public page either.
   if (!isCatalogueGame(game)) return fail(404, 'not_found', 'No game with that address.');
   return cachedJson(request, { game });
-}
-
-/* ------------------------------------------------------------ game delivery */
-
-/**
- * Headers for every file of an uploaded build.
- *
- * Two constraints shape them:
- *   1. The build is untrusted code, so it runs in a sandboxed document with an
- *      opaque origin (`sandbox` here, plus the iframe's sandbox attribute). It
- *      cannot reach this site's origin, cookies, storage or the admin session.
- *   2. That opaque origin is technically cross-origin, so the build's own
- *      `fetch`/XHR calls for its assets need CORS. Everything served here is
- *      public build output, so `Access-Control-Allow-Origin: *` is safe and
- *      necessary — without it, engine loaders (Unity's `.data`, Godot's `.pck`)
- *      cannot read their own files.
- *
- * CSP sources are intentionally permissive inside the sandbox: builds may use
- * eval, blob workers and inline code, and `'self'` means nothing under an opaque
- * origin. The isolation guarantee is the sandbox, not the source list.
- */
-function bodyHeaders(contentType: string, path: string): Headers {
-  const headers = new Headers();
-  headers.set('Content-Type', contentType);
-  headers.set('X-Content-Type-Options', 'nosniff');
-  // Preflight support matters for real engine builds: Unity's loader and
-  // anything using Range or custom headers triggers one, and a preflight that is
-  // answered without CORS headers blocks the asset it was asking about.
-  headers.set('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
-  headers.set('Access-Control-Allow-Headers', '*');
-  headers.set(
-    'Content-Security-Policy',
-    [
-      'sandbox allow-scripts allow-pointer-lock allow-forms allow-modals allow-popups allow-downloads allow-orientation-lock allow-presentation',
-      "default-src 'self' blob: data: *",
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' blob: data: *",
-      "style-src 'self' 'unsafe-inline' *",
-      'img-src * data: blob:',
-      'media-src * data: blob:',
-      'font-src * data:',
-      'connect-src * data: blob:',
-      "worker-src 'self' blob: *",
-      "frame-src 'self' blob: *",
-      "frame-ancestors 'self'",
-    ].join('; '),
-  );
-  headers.set('Access-Control-Allow-Origin', '*');
-  headers.set('Cross-Origin-Resource-Policy', 'cross-origin');
-  headers.set('Referrer-Policy', 'no-referrer');
-  /*
-   * Build URLs are stable across replacements — `/play/<slug>/main.js` is the
-   * same URL for every build a game ever has — so a long `max-age` would keep
-   * serving the previous build's script for up to an hour after the owner
-   * activates a new one. That is a mixed, broken build, not a cache win: the
-   * entry document is revalidated and the old script is not. Every build file
-   * therefore revalidates and answers with the stored object's ETag, which is
-   * what keeps a replacement immediate without giving up conditional requests.
-   */
-  headers.set('Cache-Control', isHtmlPath(path) || extensionOf(path) === 'json' ? 'no-cache' : 'public, max-age=0, must-revalidate');
-  return headers;
 }
 
 /**
@@ -370,72 +276,6 @@ async function verifiedOwner(request: Request, env: Env) {
   if (!context.owner) return null;
   const session = await readSession(request, env, context.owner.sub);
   return session ? context.owner : null;
-}
-
-async function serveBuild(request: Request, env: Env, slug: string, rest: string): Promise<Response> {
-  // Answer preflights before anything else: a build asset must not be blocked
-  // because the browser asked permission first.
-  if (request.method === 'OPTIONS') {
-    return new Response(null, {
-      status: 204,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
-        'Access-Control-Allow-Headers': '*',
-        'Access-Control-Max-Age': '86400',
-      },
-    });
-  }
-
-  const row = await getGameRow(env.DB, slug, 'slug');
-  if (!row) return fail(404, 'not_found', 'No such game.');
-
-  const url = new URL(request.url);
-  const previewBuildId = url.searchParams.get('preview');
-
-  let buildRow: BuildRow | null;
-  if (previewBuildId) {
-    // Previewing an unactivated build needs a verified owner session.
-    if (!(await verifiedOwner(request, env))) {
-      return fail(403, 'forbidden', 'Sign in as the owner to preview a build.');
-    }
-    const candidate = await getBuildRow(env.DB, previewBuildId);
-    if (!candidate || candidate.game_id !== row.id) return fail(404, 'not_found', 'No such build.');
-    buildRow = candidate;
-  } else {
-    const builds = await buildsForGame(env.DB, row.id);
-    const game = toPublicGame(row, builds);
-    // A game that is not publicly playable exists only for the owner.
-    if (!game.playable && !(await verifiedOwner(request, env))) {
-      return fail(404, 'not_found', 'This game is not available to play.');
-    }
-    buildRow = builds.find((build) => build.id === row.active_build_id) ?? null;
-    if (!buildRow || !isActivatableBuild(buildRow.status)) {
-      return fail(404, 'not_found', 'This game has no active build.');
-    }
-  }
-
-  const rawPath = rest === '' ? (buildRow.entry_path ?? 'index.html') : rest;
-  let decoded: string;
-  try {
-    decoded = decodeURIComponent(rawPath);
-  } catch {
-    return fail(400, 'bad_path', 'Malformed path.');
-  }
-  const path = safeBuildPath(decoded);
-  if (!path) return fail(404, 'not_found', 'No such file in this build.');
-
-  const record = await getBuildFiles(env.DB, buildRow.id).then((files) => files.find((file) => file.path === path));
-  if (!record) return fail(404, 'not_found', 'No such file in this build.');
-
-  const object = await env.FILES.get(`builds/${row.id}/${buildRow.id}/${path}`);
-  if (!object) return fail(404, 'not_found', 'That build file is missing from storage.');
-
-  const headers = bodyHeaders(record.content_type, path);
-  const etag = object.httpEtag ?? weakEtag(`${record.content_type}:${object.size}`);
-  headers.set('ETag', etag);
-  if (request.headers.get('if-none-match') === etag) return new Response(null, { status: 304, headers });
-  return new Response(object.body, { status: 200, headers });
 }
 
 async function serveArtwork(
@@ -464,6 +304,24 @@ async function serveArtwork(
   }
   if (!key) return fail(404, 'not_found', 'No such artwork.');
 
+  /*
+   * New uploads live on the media CDN, and the reference in the column carries
+   * its address. Redirecting rather than streaming keeps this old route valid
+   * for anything that cached it — and costs no bandwidth — while a game from
+   * before the move still resolves through the bucket below.
+   */
+  const direct = mediaUrl(key);
+  if (direct) {
+    return new Response(null, {
+      status: 302,
+      headers: {
+        Location: direct,
+        'Cache-Control': isPubliclyVisible(row.status, row.listed === 1) ? 'public, max-age=300' : 'private, no-store',
+      },
+    });
+  }
+
+  if (!env.FILES) return fail(404, 'not_found', 'That artwork is missing from storage.');
   const object = await env.FILES.get(key);
   if (!object) return fail(404, 'not_found', 'That artwork is missing from storage.');
 
@@ -519,16 +377,19 @@ function sniffAudio(bytes: Uint8Array): { extension: string; contentType: string
 }
 
 /** True when the enabled track can actually be fetched. The bundled file is a
- *  build asset, so only an uploaded object needs a storage check. */
+ *  build asset, so only an uploaded file needs a storage check. */
 async function musicFileExists(env: Env, config: MusicConfig): Promise<boolean> {
   if (!config.storageKey) return config.source === 'bundled';
-  return Boolean(await env.FILES.head(config.storageKey));
+  return mediaExists(env, config.storageKey);
 }
 
 /** Where the dashboard's preview player should point, if anywhere. */
 function musicPreviewUrl(config: MusicConfig): string | null {
   if (config.source === 'bundled') return BUNDLED_TRACK;
   if (config.source === 'uploaded' && config.storageKey) {
+    // A CDN address is per-upload and immutable; a legacy key is streamed here.
+    const direct = musicDeliveryUrl(config);
+    if (direct) return direct;
     const version = config.updatedAt ? `?v=${encodeURIComponent(config.updatedAt)}` : '';
     return `${MUSIC_MEDIA_PATH}${version}`;
   }
@@ -547,7 +408,7 @@ function musicPreviewUrl(config: MusicConfig): string | null {
 async function serveMusic(env: Env): Promise<Response> {
   const config = await readMusic(env.DB);
   const available = config.enabled && config.source === 'uploaded' ? await musicFileExists(env, config) : true;
-  return noStore(json({ music: publicMusic(config, available) }));
+  return noStore(json({ music: publicMusic(config, available, musicDeliveryUrl(config)) }));
 }
 
 /**
@@ -561,7 +422,25 @@ async function serveMusicFile(request: Request, env: Env): Promise<Response> {
     return fail(404, 'no_music', 'No uploaded track is configured.');
   }
 
+  /*
+   * An uploaded track on the media CDN is redirected to, not streamed: the CDN
+   * answers the byte-range requests the player makes far better than a Worker
+   * relaying them, and it costs no Worker bandwidth. The route stays because
+   * the public document, the dashboard preview and a row written before the move
+   * all still name it.
+   */
+  const direct = musicDeliveryUrl(config);
+  if (direct) {
+    return new Response(null, {
+      status: 302,
+      headers: { Location: direct, 'Cache-Control': 'public, max-age=300', 'Accept-Ranges': 'bytes' },
+    });
+  }
+
   const key = config.storageKey;
+  // A legacy key needs the bucket. Without one the file cannot be here.
+  const store = env.FILES;
+  if (!store) return fail(404, 'not_found', 'That track is missing from storage.');
   const contentType = config.contentType ?? 'audio/mpeg';
   const range = request.headers.get('range');
   const headers = new Headers({
@@ -576,7 +455,7 @@ async function serveMusicFile(request: Request, env: Env): Promise<Response> {
       // The object's own size is the only trustworthy total here: R2 returns
       // the full object size even for a ranged read, so deriving the end of the
       // response from it would claim the whole file in every Content-Range.
-      const head = await env.FILES.head(key);
+      const head = await store.head(key);
       if (!head) return fail(404, 'not_found', 'That track is missing from storage.');
       const total = config.byteSize ?? head.size;
       // `bytes=-500` asks for the last 500 bytes, not for a range starting at 0.
@@ -592,7 +471,7 @@ async function serveMusicFile(request: Request, env: Env): Promise<Response> {
       }
 
       const length = end - start + 1;
-      const object = await env.FILES.get(key, { range: { offset: start, length } });
+      const object = await store.get(key, { range: { offset: start, length } });
       if (!object) return fail(404, 'not_found', 'That track is missing from storage.');
       headers.set('Content-Range', `bytes ${start}-${end}/${total}`);
       headers.set('Content-Length', String(length));
@@ -600,10 +479,21 @@ async function serveMusicFile(request: Request, env: Env): Promise<Response> {
     }
   }
 
-  const object = await env.FILES.get(key);
+  const object = await store.get(key);
   if (!object) return fail(404, 'not_found', 'That track is missing from storage.');
   headers.set('Content-Length', String(object.size));
   return new Response(object.body, { status: 200, headers });
+}
+
+/**
+ * The audio limits this deployment can actually honour.
+ *
+ * The application allows 12 MB, but Get Pronto's free plan accepts 10 MB per
+ * file, so the smaller of the two is what the dashboard is told — an upload the
+ * store would refuse is stopped with the same number the form displays.
+ */
+function musicLimits(env: Env): { maxBytes: number; maxTitle: number } {
+  return { maxBytes: Math.min(MUSIC_LIMITS.maxBytes, mediaLimitBytes(env)), maxTitle: MUSIC_LIMITS.maxTitle };
 }
 
 /**
@@ -678,6 +568,16 @@ async function serveAvatar(request: Request, env: Env): Promise<Response> {
   const key = await avatarKeyFor(env.DB, preview);
   if (!key) return fail(404, 'not_found', 'No image has been uploaded.');
 
+  // Same rule as artwork: a CDN reference redirects, a legacy key is read here.
+  const direct = mediaUrl(key);
+  if (direct) {
+    return new Response(null, {
+      status: 302,
+      headers: { Location: direct, 'Cache-Control': preview ? 'private, no-store' : 'public, max-age=300' },
+    });
+  }
+
+  if (!env.FILES) return fail(404, 'not_found', 'That image is missing from storage.');
   const object = await env.FILES.get(key);
   if (!object) return fail(404, 'not_found', 'That image is missing from storage.');
 
@@ -842,132 +742,6 @@ function publicationBlockers(
   return blockers;
 }
 
-/* -------------------------------------------------------------- build ingest */
-
-async function storeBuildFile(
-  env: Env,
-  build: BuildRow,
-  path: string,
-  bytes: Uint8Array,
-  contentType: string,
-): Promise<void> {
-  await env.FILES.put(`builds/${build.game_id}/${build.id}/${path}`, bytes, {
-    httpMetadata: { contentType, cacheControl: 'public, max-age=3600' },
-  });
-  await recordBuildFile(env.DB, build.id, { path, size: bytes.byteLength, contentType });
-}
-
-interface ZipResult {
-  stored: number;
-  skipped: { path: string; reason: string }[];
-}
-
-async function ingestZip(env: Env, build: BuildRow, bytes: Uint8Array, config: Limits): Promise<ZipResult> {
-  const skipped: { path: string; reason: string }[] = [];
-  let declared = 0;
-  let acceptedFiles = 0;
-  let countOverflow = false;
-
-  const files = unzipSync(bytes, {
-    filter: (file) => {
-      if (file.name.endsWith('/')) return false;
-      const safe = safeBuildPath(file.name);
-      if (!safe) {
-        skipped.push({ path: file.name, reason: 'unsupported file type or unsafe path' });
-        return false;
-      }
-      if (file.originalSize > config.maxFileBytes) {
-        skipped.push({ path: file.name, reason: 'larger than the per-file limit' });
-        return false;
-      }
-      if (fileCountExceedsLimit(acceptedFiles + 1, config.maxBuildFiles)) {
-        if (!countOverflow) {
-          skipped.push({ path: file.name, reason: `archive contains more than ${Math.floor(config.maxBuildFiles)} files` });
-          countOverflow = true;
-        }
-        return false;
-      }
-      acceptedFiles += 1;
-      declared += file.originalSize;
-      if (declared > config.maxBuildBytes) {
-        skipped.push({ path: file.name, reason: 'archive expands past the build size limit' });
-        return false;
-      }
-      return true;
-    },
-  });
-
-  const entries: ArchiveEntry[] = [];
-  for (const [name, data] of Object.entries(files)) {
-    const safe = safeBuildPath(name);
-    if (!safe) continue;
-    // The central directory can lie about sizes; these are the real numbers.
-    if (data.byteLength > config.maxFileBytes) {
-      skipped.push({ path: name, reason: 'larger than the per-file limit' });
-      continue;
-    }
-    entries.push({ path: safe, bytes: data });
-  }
-
-  // The filter normally catches this before extraction. Keep the post-extract
-  // check as a defence against a decompressor or metadata discrepancy: the
-  // server must reject an overflowing archive, never publish a prefix of it.
-  if (fileCountExceedsLimit(entries.length, config.maxBuildFiles) && !countOverflow) {
-    skipped.push({ path: '…', reason: `archive contains more than ${Math.floor(config.maxBuildFiles)} files` });
-  }
-
-  /* Never silently publish a partial archive. The browser uploader validates
-     each file before sending it; the server-side ZIP path must enforce the same
-     contract instead of quietly dropping unsafe or oversized entries. */
-  if (skipped.length > 0) {
-    await markBuildStatus(
-      env.DB,
-      build.id,
-      'failed',
-      null,
-      `Archive validation failed: ${skipped.map((entry) => `${entry.path} (${entry.reason})`).join('; ')}`.slice(0, 2000),
-    );
-    return { stored: 0, skipped };
-  }
-
-  const { files: trimmed, strippedPrefix } = stripSingleRoot(entries, config.maxBuildFiles);
-  const selected = trimmed.slice(0, config.maxBuildFiles);
-  if (trimmed.length > selected.length) skipped.push({ path: '…', reason: `archive contains more than ${Math.floor(config.maxBuildFiles)} files` });
-
-  if (skipped.length > 0) {
-    await markBuildStatus(
-      env.DB,
-      build.id,
-      'failed',
-      null,
-      `Archive validation failed: ${skipped.map((entry) => `${entry.path} (${entry.reason})`).join('; ')}`.slice(0, 2000),
-    );
-    return { stored: 0, skipped };
-  }
-
-  let stored = 0;
-  for (const entry of selected) {
-    await storeBuildFile(env, build, entry.path, entry.bytes, contentTypeFor(entry.path));
-    stored += 1;
-  }
-
-  const paths = selected.map((entry) => entry.path);
-  const detection = detectEntryPath(paths);
-  if (detection.entry) await markBuildStatus(env.DB, build.id, 'ready', detection.entry, strippedPrefix ? `stripped folder "${strippedPrefix}"` : null);
-  else {
-    await markBuildStatus(
-      env.DB,
-      build.id,
-      'failed',
-      null,
-      detection.candidates.length === 0
-        ? 'No HTML file found in the archive.'
-        : 'Several HTML files found — choose the entry file explicitly.',
-    );
-  }
-  return { stored, skipped };
-}
-
 /* ---------------------------------------------------------------- the router */
 
 export function createApp() {
@@ -975,8 +749,6 @@ export function createApp() {
     try {
       const url = new URL(request.url);
       const path = url.pathname;
-      const config = limits(env);
-
     /* -------------------------------------------------------- public routes */
 
     if (path === '/api/health') {
@@ -986,7 +758,10 @@ export function createApp() {
        * records are owner data, and their count is not a visitor's business.
        */
       const games = await listPublicGames(env.DB);
-      return json({ ok: true, games: games.length, storage: 'r2', time: nowIso() }, { headers: { 'Cache-Control': 'no-store' } });
+      return json(
+        { ok: true, games: games.length, storage: mediaProvider(env) ?? 'unconfigured', time: nowIso() },
+        { headers: { 'Cache-Control': 'no-store' } },
+      );
     }
 
     if (path === '/api/catalogue' && request.method === 'GET') return serveCatalogue(request, env);
@@ -1005,14 +780,6 @@ export function createApp() {
     if (path.startsWith('/api/media/screenshot/') && request.method === 'GET') {
       const [, , , , gameId, index] = path.split('/');
       return serveArtwork(request, env, gameId ?? '', 'screenshot', index ?? null);
-    }
-
-    if (path.startsWith('/play/')) {
-      const rest = path.slice('/play/'.length);
-      const slash = rest.indexOf('/');
-      const slug = decodePathSegment(slash === -1 ? rest : rest.slice(0, slash));
-      if (slug === null) return fail(400, 'bad_path', 'Malformed game address.');
-      return serveBuild(request, env, slug, slash === -1 ? '' : rest.slice(slash + 1));
     }
 
     if (path === '/api/settings' && request.method === 'GET') return serveSettings(request, env);
@@ -1062,13 +829,8 @@ export function createApp() {
             gate: context.owner && !session ? await gateState(env, request, context.owner) : null,
             // Masked addresses and factor status, for a verified session only.
             security: context.owner && session ? await securityState(env, request, context.owner, session) : null,
-            // The dashboard reads these once per session to size its uploader.
-            limits: {
-              maxBuildBytes: config.maxBuildBytes,
-              maxFileBytes: config.maxFileBytes,
-              maxBuildFiles: config.maxBuildFiles,
-              maxZipBytes: config.maxZipBytes,
-            },
+            // The dashboard reads these once per session to size its uploaders.
+            limits: { maxImageBytes: MAX_ARTWORK_BYTES, maxMusicBytes: musicLimits(env).maxBytes },
           }),
         );
       }
@@ -1147,7 +909,7 @@ export function createApp() {
         );
       }
 
-      return noStore(await adminRoutes(request, env, { url, path, actor: context.owner.sub, config, session, owner: context.owner }));
+      return noStore(await adminRoutes(request, env, { url, path, actor: context.owner.sub, session, owner: context.owner }));
     }
 
     /* ------------------------------------------------------------ static app */
@@ -1168,7 +930,6 @@ interface AdminContext {
   url: URL;
   path: string;
   actor: string;
-  config: Limits;
   /** A verified session: without one, no admin route is reachable. */
   session: SessionRow;
   owner: { sub: string; email: string | null };
@@ -1322,7 +1083,7 @@ async function authRoutes(
 }
 
 async function adminRoutes(request: Request, env: Env, ctx: AdminContext): Promise<Response> {
-  const { url, path, actor, config } = ctx;
+  const { url, path, actor } = ctx;
   const method = request.method;
   const segments = path.split('/').filter(Boolean); // api, admin, ...
 
@@ -1387,7 +1148,7 @@ async function adminRoutes(request: Request, env: Env, ctx: AdminContext): Promi
 
     const id = crypto.randomUUID();
     await insertGame(env.DB, id, write);
-    const game = await getGameWithBuilds(env.DB, id, 'id');
+    const game = await getAdminGame(env.DB, id, 'id');
     return json({ game }, { status: 201 });
   }
 
@@ -1395,7 +1156,7 @@ async function adminRoutes(request: Request, env: Env, ctx: AdminContext): Promi
     const id = segments[3];
 
     if (path === `/api/admin/games/${id}` && method === 'GET') {
-      const game = await getGameWithBuilds(env.DB, id, 'id');
+      const game = await getAdminGame(env.DB, id, 'id');
       return game ? json({ game }) : fail(404, 'not_found', 'No such game.');
     }
 
@@ -1420,7 +1181,7 @@ async function adminRoutes(request: Request, env: Env, ctx: AdminContext): Promi
       }
 
       await updateGame(env.DB, id, merged, row.status);
-      const game = await getGameWithBuilds(env.DB, id, 'id');
+      const game = await getAdminGame(env.DB, id, 'id');
       return json({ game });
     }
 
@@ -1430,31 +1191,25 @@ async function adminRoutes(request: Request, env: Env, ctx: AdminContext): Promi
 
       const mode = url.searchParams.get('mode') === 'purge' ? 'purge' : 'archive';
       if (mode === 'archive') {
-        if (row.status === 'archived') return json({ archived: true, game: await getGameWithBuilds(env.DB, id, 'id') });
+        if (row.status === 'archived') return json({ archived: true, game: await getAdminGame(env.DB, id, 'id') });
         await env.DB.prepare("UPDATE games SET status = 'archived', listed = 0, archived_at = ?, updated_at = ? WHERE id = ?")
           .bind(nowIso(), nowIso(), id)
           .run();
         await recordEvent(env.DB, { actor, kind: 'delete', gameId: id, detail: 'archived' });
-        return json({ archived: true, game: await getGameWithBuilds(env.DB, id, 'id') });
+        return json({ archived: true, game: await getAdminGame(env.DB, id, 'id') });
       }
 
-      // Permanent delete: remove this game's objects and nothing else.
-      const builds = await buildsForGame(env.DB, id);
-      const keys: string[] = [];
-      for (const build of builds) {
-        const files = await getBuildFiles(env.DB, build.id);
-        for (const file of files) keys.push(`builds/${id}/${build.id}/${file.path}`);
-      }
-      if (row.thumbnail_key) keys.push(row.thumbnail_key);
-      if (row.banner_key) keys.push(row.banner_key);
-      keys.push(...parseJson<string[]>(row.screenshots, []));
+      // Permanent delete: remove this game's artwork and nothing else.
+      const refs: string[] = [];
+      if (row.thumbnail_key) refs.push(row.thumbnail_key);
+      if (row.banner_key) refs.push(row.banner_key);
+      refs.push(...parseJson<string[]>(row.screenshots, []));
 
-      for (let index = 0; index < keys.length; index += 500) {
-        await env.FILES.delete(keys.slice(index, index + 500));
-      }
+      let removed = 0;
+      for (const ref of refs) if (await deleteMedia(env, ref)) removed += 1;
       await deleteGame(env.DB, id);
-      await recordEvent(env.DB, { actor, kind: 'delete', gameId: id, detail: `purged ${keys.length} objects` });
-      return json({ deleted: true, objects: keys.length });
+      await recordEvent(env.DB, { actor, kind: 'delete', gameId: id, detail: `purged ${removed} objects` });
+      return json({ deleted: true, objects: removed });
     }
 
     if (path === `/api/admin/games/${id}/duplicate` && method === 'POST') {
@@ -1475,62 +1230,7 @@ async function adminRoutes(request: Request, env: Env, ctx: AdminContext): Promi
         listed: false,
         featured: false,
       });
-      return json({ game: await getGameWithBuilds(env.DB, copyId, 'id') }, { status: 201 });
-    }
-
-    if (path === `/api/admin/games/${id}/builds` && method === 'POST') {
-      const row = await getGameRow(env.DB, id, 'id');
-      if (!row) return fail(404, 'not_found', 'No such game.');
-
-      const since = new Date(Date.now() - 60 * 60 * 1000).toISOString();
-      /*
-       * One budget for both upload paths. Counting only browser-initiated builds
-       * let a script skip the limit entirely by posting ZIPs, even though each
-       * one creates a build record and writes objects.
-       */
-      if ((await countEventsSince(env.DB, actor, ['build.init', 'build.zip'], since)) >= MAX_BUILD_INITS_PER_HOUR) {
-        return fail(429, 'rate_limited', 'Too many build uploads in the last hour. Try again shortly.');
-      }
-
-      const contentType = request.headers.get('content-type') ?? '';
-      const buildId = crypto.randomUUID();
-      const buildVersion = str(url.searchParams.get('version')) || row.version || null;
-
-      if (contentType.includes('application/zip') || contentType.includes('application/octet-stream')) {
-        const declared = Number(request.headers.get('content-length') ?? '0');
-        if (declared > config.maxZipBytes) return fail(413, 'too_large', `ZIP uploads are limited to ${Math.round(config.maxZipBytes / 1024 / 1024)} MB. Use the browser uploader for larger builds.`);
-
-        const buffer = new Uint8Array(await request.arrayBuffer());
-        if (buffer.byteLength === 0) return fail(400, 'empty', 'That upload was empty.');
-        if (buffer.byteLength > config.maxZipBytes) return fail(413, 'too_large', 'That archive is larger than the server-side limit.');
-
-        await createBuild(env.DB, { id: buildId, gameId: id, version: buildVersion, notes: 'server-side ZIP extraction' });
-        const build = await getBuildRow(env.DB, buildId);
-        if (!build) return fail(500, 'create_failed', 'Could not create the build record.');
-
-        let result: ZipResult;
-        try {
-          result = await ingestZip(env, build, buffer, config);
-        } catch (error) {
-          await markBuildStatus(env.DB, buildId, 'failed', null, `Extraction failed: ${(error as Error).message}`);
-          return fail(422, 'bad_archive', 'That file could not be read as a ZIP archive.');
-        }
-
-        await recordEvent(env.DB, { actor, kind: 'build.zip', gameId: id, buildId, detail: `${result.stored} files`, size: buffer.byteLength });
-        const fresh = await buildsForGame(env.DB, id);
-        const created = fresh.find((entry) => entry.id === buildId) ?? null;
-        return json({ build: created ? buildSummary(created) : null, stored: result.stored, skipped: result.skipped });
-      }
-
-      await createBuild(env.DB, { id: buildId, gameId: id, version: buildVersion, notes: 'browser extraction' });
-      await recordEvent(env.DB, { actor, kind: 'build.init', gameId: id, buildId });
-      return json(
-        {
-          buildId,
-          limits: { maxFileBytes: config.maxFileBytes, maxBuildBytes: config.maxBuildBytes, maxBuildFiles: config.maxBuildFiles },
-        },
-        { status: 201 },
-      );
+      return json({ game: await getAdminGame(env.DB, copyId, 'id') }, { status: 201 });
     }
 
     /* -------------------------------------------------------------- artwork */
@@ -1552,15 +1252,22 @@ async function adminRoutes(request: Request, env: Env, ctx: AdminContext): Promi
         const image = sniffImage(bytes);
         if (!image) return fail(415, 'unsupported_image', 'Upload a PNG, JPEG, WebP, GIF or AVIF image.');
 
-        const key = `artwork/${id}/${kind}-${crypto.randomUUID()}.${image.extension}`;
-        await env.FILES.put(key, bytes, { httpMetadata: { contentType: image.contentType, cacheControl: 'public, max-age=300' } });
+        const name = `${kind}-${crypto.randomUUID()}.${image.extension}`;
+        let stored: MediaRef;
+        try {
+          stored = await putMedia(env, { bytes, contentType: image.contentType, key: `artwork/${id}/${name}`, filename: name });
+        } catch (error) {
+          return storageFailure(error);
+        }
 
         const previous = kind === 'thumbnail' ? row.thumbnail_key : row.banner_key;
-        await setArtworkKey(env.DB, id, kind, key);
-        if (previous && previous !== key) await env.FILES.delete(previous);
+        // The row is written first: a failed delete leaves an orphaned object,
+        // never a thumbnail pointing at a file that has already gone.
+        await setArtworkKey(env.DB, id, kind, serialiseMediaRef(stored));
+        if (previous) await deleteMedia(env, previous);
         await recordEvent(env.DB, { actor, kind: 'artwork', gameId: id, detail: kind, size: bytes.byteLength });
 
-        return json({ game: await getGameWithBuilds(env.DB, id, 'id') });
+        return json({ game: await getAdminGame(env.DB, id, 'id') });
       }
 
       if (method === 'DELETE') {
@@ -1569,8 +1276,8 @@ async function adminRoutes(request: Request, env: Env, ctx: AdminContext): Promi
         if (!row) return fail(404, 'not_found', 'No such game.');
         const previous = kind === 'thumbnail' ? row.thumbnail_key : row.banner_key;
         await setArtworkKey(env.DB, id, kind, null);
-        if (previous) await env.FILES.delete(previous);
-        return json({ game: await getGameWithBuilds(env.DB, id, 'id') });
+        if (previous) await deleteMedia(env, previous);
+        return json({ game: await getAdminGame(env.DB, id, 'id') });
       }
     }
 
@@ -1589,11 +1296,16 @@ async function adminRoutes(request: Request, env: Env, ctx: AdminContext): Promi
       const image = bytes.byteLength > 0 ? sniffImage(bytes) : null;
       if (!image) return fail(415, 'unsupported_image', 'Upload a PNG, JPEG, WebP, GIF or AVIF image.');
 
-      const key = `artwork/${id}/shot-${crypto.randomUUID()}.${image.extension}`;
-      await env.FILES.put(key, bytes, { httpMetadata: { contentType: image.contentType, cacheControl: 'public, max-age=300' } });
-      await setScreenshotKeys(env.DB, id, [...shots, key]);
+      const name = `shot-${crypto.randomUUID()}.${image.extension}`;
+      let stored: MediaRef;
+      try {
+        stored = await putMedia(env, { bytes, contentType: image.contentType, key: `artwork/${id}/${name}`, filename: name });
+      } catch (error) {
+        return storageFailure(error);
+      }
+      await setScreenshotKeys(env.DB, id, [...shots, serialiseMediaRef(stored)]);
       await recordEvent(env.DB, { actor, kind: 'artwork', gameId: id, detail: 'screenshot', size: bytes.byteLength });
-      return json({ game: await getGameWithBuilds(env.DB, id, 'id') }, { status: 201 });
+      return json({ game: await getAdminGame(env.DB, id, 'id') }, { status: 201 });
     }
 
     if (segments.length === 5 && segments[4] === 'screenshots' && method === 'DELETE') {
@@ -1605,114 +1317,8 @@ async function adminRoutes(request: Request, env: Env, ctx: AdminContext): Promi
 
       const [removed] = shots.splice(index, 1);
       await setScreenshotKeys(env.DB, id, shots);
-      if (removed) await env.FILES.delete(removed);
-      return json({ game: await getGameWithBuilds(env.DB, id, 'id') });
-    }
-  }
-
-  /* ---------------------------------------------------------------- builds */
-
-  if (segments.length >= 4 && segments[2] === 'builds') {
-    const buildId = segments[3];
-    const build = await getBuildRow(env.DB, buildId);
-    if (!build) return fail(404, 'not_found', 'No such build.');
-
-    if (path === `/api/admin/builds/${buildId}` && method === 'GET') {
-      const [files, game] = await Promise.all([getBuildFiles(env.DB, buildId), getGameWithBuilds(env.DB, build.game_id, 'id')]);
-      return json({ build: buildSummary(build), files, game });
-    }
-
-    if (path === `/api/admin/builds/${buildId}/files` && method === 'PUT') {
-      if (build.status !== 'uploading') return fail(409, 'build_closed', 'This build is no longer accepting files.');
-      if (method === 'PUT' && !url.searchParams.get('path')) return fail(400, 'missing_path', 'A path query parameter is required.');
-
-      const safe = safeBuildPath(url.searchParams.get('path') ?? '');
-      if (!safe) return fail(415, 'unsupported_file', 'That file type or path is not allowed in a game build.');
-
-      const declared = Number(request.headers.get('content-length') ?? '0');
-      if (declared > config.maxFileBytes) return fail(413, 'too_large', 'That file is larger than the per-file limit.');
-
-      const since = new Date(Date.now() - 60 * 60 * 1000).toISOString();
-      if ((await countEventsSince(env.DB, actor, 'build.file', since)) >= MAX_UPLOAD_EVENTS_PER_HOUR) {
-        return fail(429, 'rate_limited', 'Too many upload requests in the last hour.');
-      }
-
-      const bytes = new Uint8Array(await request.arrayBuffer());
-      if (bytes.byteLength === 0) return fail(400, 'empty', 'That file was empty.');
-      if (bytes.byteLength > config.maxFileBytes) return fail(413, 'too_large', 'That file is larger than the per-file limit.');
-
-      const existing = await getBuildFiles(env.DB, buildId);
-      const alreadyStored = existing.some((file) => file.path === safe);
-      const currentBytes = existing.reduce((total, file) => total + file.size, 0);
-      if (!alreadyStored && existing.length >= config.maxBuildFiles) return fail(413, 'too_many_files', 'This build has reached its file limit.');
-      if (!alreadyStored && currentBytes + bytes.byteLength > config.maxBuildBytes) return fail(413, 'too_large', 'This build has reached its total size limit.');
-
-      await storeBuildFile(env, build, safe, bytes, contentTypeFor(safe));
-      await recordEvent(env.DB, { actor, kind: 'build.file', gameId: build.game_id, buildId, detail: safe, size: bytes.byteLength });
-
-      const updated = await getBuildRow(env.DB, buildId);
-      return json({ path: safe, size: bytes.byteLength, fileCount: updated?.file_count ?? 0, totalBytes: updated?.total_bytes ?? 0 });
-    }
-
-    if (path === `/api/admin/builds/${buildId}/files` && method === 'GET') {
-      return json({ files: await getBuildFiles(env.DB, buildId) });
-    }
-
-    if (path === `/api/admin/builds/${buildId}/finalize` && method === 'POST') {
-      if (build.status !== 'uploading') return fail(409, 'build_closed', 'This build was already finalised.');
-
-      const files = await getBuildFiles(env.DB, buildId);
-      if (files.length === 0) return fail(422, 'empty_build', 'No files were uploaded for this build.');
-
-      const body = (await readJson<{ entry?: string }>(request)) ?? {};
-      const requested = body.entry ? safeBuildPath(body.entry) : null;
-      const paths = files.map((file) => file.path);
-
-      let entry: string | null;
-      if (requested) entry = requested;
-      else entry = detectEntryPath(paths).entry;
-
-      if (!entry) {
-        return fail(422, 'entry_ambiguous', 'Choose which HTML file launches the game.', {
-          entry: 'No single index.html was found — pick the entry file.',
-        });
-      }
-      if (!isHtmlPath(entry)) return fail(422, 'bad_entry', 'The entry file must be an HTML file.');
-      if (!paths.includes(entry)) return fail(422, 'missing_entry', 'That entry file was not uploaded.');
-
-      await markBuildStatus(env.DB, buildId, 'ready', entry);
-      const fresh = await getBuildRow(env.DB, buildId);
-      return json({ build: fresh ? buildSummary(fresh) : null });
-    }
-
-    if (path === `/api/admin/builds/${buildId}/activate` && method === 'POST') {
-      if (!build.entry_path) return fail(422, 'no_entry', 'Finalise the build (and pick its entry file) before activating it.');
-      /*
-       * Only a finished build may go live. `failed`, `uploading` and `rejected`
-       * can still carry an old entry path from an earlier state, and activating
-       * one would make the public page point at an incomplete upload.
-       */
-      if (!isActivatableBuild(build.status)) {
-        return fail(422, 'build_not_ready', 'This build is not ready to activate. Finalise it first.');
-      }
-
-      await activateBuild(env.DB, build.game_id, buildId);
-      const game = await getGameWithBuilds(env.DB, build.game_id, 'id');
-      return json({ game });
-    }
-
-    if (path === `/api/admin/builds/${buildId}` && method === 'DELETE') {
-      const game = await getGameRow(env.DB, build.game_id, 'id');
-      if (game?.active_build_id === buildId) {
-        return fail(409, 'build_active', 'This build is live. Activate another build first, or delete the game.');
-      }
-      const files = await getBuildFiles(env.DB, buildId);
-      const keys = files.map((file) => `builds/${build.game_id}/${buildId}/${file.path}`);
-      for (let index = 0; index < keys.length; index += 500) await env.FILES.delete(keys.slice(index, index + 500));
-      await deleteBuildRow(env.DB, buildId);
-      await touchGame(env.DB, build.game_id);
-      await recordEvent(env.DB, { actor, kind: 'delete', gameId: build.game_id, buildId, detail: `build removed (${keys.length} files)` });
-      return json({ deleted: true, game: await getGameWithBuilds(env.DB, build.game_id, 'id') });
+      if (removed) await deleteMedia(env, removed);
+      return json({ game: await getAdminGame(env.DB, id, 'id') });
     }
   }
 
@@ -1775,9 +1381,16 @@ async function adminRoutes(request: Request, env: Env, ctx: AdminContext): Promi
 
     if (action === 'publish' && method === 'POST') {
       if (kind === 'about') {
+        // Read before publishing: the references held a moment ago are exactly
+        // the candidates, and publishing makes the draft and published copies
+        // one and the same.
+        const before = await readAbout(env.DB);
         const stored = await publishDoc<AboutContent>(env.DB, 'about');
-        // The portrait the draft replaced is no longer referenced by anything.
-        await pruneAvatars(env, [stored.draft.avatarKey, stored.published?.avatarKey]);
+        await retireAvatars(
+          env,
+          [before.draft.avatarKey, before.published?.avatarKey],
+          [stored.draft.avatarKey, stored.published?.avatarKey],
+        );
         await recordEvent(env.DB, { actor, kind: 'content.publish', detail: kind });
         return json({ document: stored });
       }
@@ -1799,8 +1412,14 @@ async function adminRoutes(request: Request, env: Env, ctx: AdminContext): Promi
 
     if (action === 'discard' && method === 'POST') {
       if (kind === 'about') {
+        const before = await readAbout(env.DB);
         const stored = await discardDoc<AboutContent>(env.DB, 'about');
-        await pruneAvatars(env, [stored.draft.avatarKey, stored.published?.avatarKey]);
+        // A discarded draft may have pointed at a portrait nothing else uses.
+        await retireAvatars(
+          env,
+          [before.draft.avatarKey, before.published?.avatarKey],
+          [stored.draft.avatarKey, stored.published?.avatarKey],
+        );
         return json({ document: stored });
       }
       if (kind === 'social') {
@@ -1823,14 +1442,24 @@ async function adminRoutes(request: Request, env: Env, ctx: AdminContext): Promi
         const image = sniffImage(bytes);
         if (!image) return fail(415, 'unsupported_image', 'Upload a PNG, JPEG, WebP, GIF or AVIF image.');
 
-        const key = `content/avatar/${crypto.randomUUID()}.${image.extension}`;
-        await env.FILES.put(key, bytes, {
-          httpMetadata: { contentType: image.contentType, cacheControl: 'public, max-age=300' },
-        });
+        const name = `${crypto.randomUUID()}.${image.extension}`;
+        let storedFile: MediaRef;
+        try {
+          storedFile = await putMedia(env, {
+            bytes,
+            contentType: image.contentType,
+            key: `content/avatar/${name}`,
+            filename: name,
+          });
+        } catch (error) {
+          return storageFailure(error);
+        }
+        const reference = serialiseMediaRef(storedFile);
 
-        const next = { ...stored.draft, avatarKey: key };
+        const next = { ...stored.draft, avatarKey: reference };
         const saved = await writeDraft<typeof next>(env.DB, 'about', next);
-        await pruneAvatars(env, [key, stored.published?.avatarKey]);
+        // The portrait that was there a moment ago is the only new orphan.
+        await retireAvatars(env, [stored.draft.avatarKey], [reference, stored.published?.avatarKey]);
         await recordEvent(env.DB, { actor, kind: 'content.avatar', detail: kind, size: bytes.byteLength });
         return json({ document: saved });
       }
@@ -1838,7 +1467,7 @@ async function adminRoutes(request: Request, env: Env, ctx: AdminContext): Promi
       if (method === 'DELETE') {
         const next = { ...stored.draft, avatarKey: null };
         const saved = await writeDraft<typeof next>(env.DB, 'about', next);
-        await pruneAvatars(env, [stored.published?.avatarKey]);
+        await retireAvatars(env, [stored.draft.avatarKey], [stored.published?.avatarKey]);
         return json({ document: saved });
       }
     }
@@ -1867,7 +1496,7 @@ async function adminRoutes(request: Request, env: Env, ctx: AdminContext): Promi
         music: current,
         available: await musicFileExists(env, current),
         previewUrl: musicPreviewUrl(current),
-        limits: MUSIC_LIMITS,
+        limits: musicLimits(env),
       }),
     );
   }
@@ -1894,21 +1523,22 @@ async function adminRoutes(request: Request, env: Env, ctx: AdminContext): Promi
       music,
       available: await musicFileExists(env, music),
       previewUrl: musicPreviewUrl(music),
-      limits: MUSIC_LIMITS,
+      limits: musicLimits(env),
     });
   }
 
   if (path === '/api/admin/music/file' && method === 'PUT') {
+    const limit = musicLimits(env).maxBytes;
     const declared = Number(request.headers.get('content-length') ?? '0');
-    if (declared > MUSIC_LIMITS.maxBytes) {
-      return fail(413, 'too_large', `That file is larger than ${Math.round(MUSIC_LIMITS.maxBytes / (1024 * 1024))} MB.`);
+    if (declared > limit) {
+      return fail(413, 'too_large', `That file is larger than ${Math.round(limit / (1024 * 1024))} MB.`);
     }
 
     const bytes = new Uint8Array(await request.arrayBuffer());
     if (bytes.byteLength === 0) return fail(400, 'empty', 'That upload was empty.');
     // Measured against the bytes actually received, not the declared length.
-    if (bytes.byteLength > MUSIC_LIMITS.maxBytes) {
-      return fail(413, 'too_large', `That file is larger than ${Math.round(MUSIC_LIMITS.maxBytes / (1024 * 1024))} MB.`);
+    if (bytes.byteLength > limit) {
+      return fail(413, 'too_large', `That file is larger than ${Math.round(limit / (1024 * 1024))} MB.`);
     }
     const format = sniffAudio(bytes);
     if (!format) return fail(415, 'unsupported_audio', 'Upload an MP3, OGG, WAV, M4A or FLAC file.');
@@ -1916,26 +1546,30 @@ async function adminRoutes(request: Request, env: Env, ctx: AdminContext): Promi
     const current = await readMusic(env.DB);
     const requestedTitle = url.searchParams.get('title')?.trim().replace(/\s+/g, ' ') ?? '';
     const title = (requestedTitle || current.title).slice(0, MUSIC_LIMITS.maxTitle) || 'Ambient theme';
-    const key = musicStorageKey(format.extension);
-
-    await env.FILES.put(key, bytes, {
-      httpMetadata: { contentType: format.contentType, cacheControl: 'public, max-age=300' },
-    });
+    const name = `${crypto.randomUUID()}.${format.extension}`;
+    let stored: MediaRef;
+    try {
+      stored = await putMedia(env, { bytes, contentType: format.contentType, key: `music/${name}`, filename: name });
+    } catch (error) {
+      return storageFailure(error);
+    }
+    const reference = serialiseMediaRef(stored);
 
     const music = await writeMusic(env.DB, {
       title,
       source: 'uploaded',
-      storageKey: key,
+      storageKey: reference,
       contentType: format.contentType,
       byteSize: bytes.byteLength,
       enabled: true,
       updatedAt: nowIso(),
     });
 
-    // The replaced object is no longer referenced by the document. Only a
-    // `music/` key is ever deleted, so builds and artwork are untouchable here.
-    if (current.storageKey && current.storageKey !== key && isMusicKey(current.storageKey)) {
-      await env.FILES.delete(current.storageKey);
+    // The replaced file is no longer referenced by the document. Only a value
+    // this document itself could hold is ever deleted, so game artwork is
+    // untouchable here.
+    if (current.storageKey && current.storageKey !== reference && isMusicStorage(current.storageKey)) {
+      await deleteMedia(env, current.storageKey);
     }
     await recordEvent(env.DB, { actor, kind: 'music.upload', detail: `${title} (${format.extension})`, size: bytes.byteLength });
 
@@ -1943,13 +1577,13 @@ async function adminRoutes(request: Request, env: Env, ctx: AdminContext): Promi
       music,
       available: true,
       previewUrl: musicPreviewUrl(music),
-      limits: MUSIC_LIMITS,
+      limits: musicLimits(env),
     });
   }
 
   if (path === '/api/admin/music/file' && method === 'DELETE') {
     const current = await readMusic(env.DB);
-    if (current.storageKey && isMusicKey(current.storageKey)) await env.FILES.delete(current.storageKey);
+    if (current.storageKey && isMusicStorage(current.storageKey)) await deleteMedia(env, current.storageKey);
 
     const music = await writeMusic(env.DB, {
       title: current.title,
@@ -1961,7 +1595,7 @@ async function adminRoutes(request: Request, env: Env, ctx: AdminContext): Promi
       updatedAt: nowIso(),
     });
     await recordEvent(env.DB, { actor, kind: 'music.remove', detail: current.title });
-    return json({ music, available: false, previewUrl: null, limits: MUSIC_LIMITS });
+    return json({ music, available: false, previewUrl: null, limits: musicLimits(env) });
   }
 
   /* ---------------------------------------------------- account security */

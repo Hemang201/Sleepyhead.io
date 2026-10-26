@@ -1,18 +1,18 @@
 # Building and deploying
 
 This site is a Cloudflare Worker that serves a static React build, owns the
-game/content API, and holds the database (D1) and uploaded files (R2). There is no
-separate backend server to run and no Node process in production.
+game/content API, and holds the database (D1). Uploaded images and audio live in
+Get Pronto, an external object store with a CDN. There is no separate backend
+server to run and no Node process in production.
 
 ```
 Worker (worker/index.ts)
 ├── /api/**            the API: catalogue, content, music, admin, auth, media
-├── /play/**           legacy locally stored builds (the public player now uses itch.io)
 └── everything else    the static build in dist/, via the ASSETS binding
 ```
 
-The games themselves are hosted by itch.io. This site stores the listing and the
-uploaded artwork; no game files are needed for a new listing.
+The games themselves are hosted by itch.io, the artwork and audio by Get Pronto.
+No game files are stored or served by this site.
 
 ## Local development
 
@@ -47,23 +47,28 @@ installed at deploy time.
 
 Two supported routes, and they differ in who creates the resources:
 
-- **Freebuff Sites** — the platform creates the D1 database and the R2 bucket,
-  injects `APP_ORIGIN` (plus reserved platform variables this app does not use) and
-  uploads the prebuilt `dist/` assets plus the Worker module. Deploy a preview first, check it,
+- **Freebuff Sites** — the platform creates the D1 database, injects
+  `APP_ORIGIN` (plus reserved platform variables this app does not use) and uploads
+  the prebuilt `dist/` assets plus the Worker module. Deploy a preview first, check it,
   then publish production. Run the migrations against the deployed database
-  afterwards.
+  afterwards, and set `GETPRONTO_API_KEY` under **Sites → Secrets** before
+  uploading any artwork.
 - **Your own Cloudflare account** — `wrangler deploy` with the bindings already in
   [`wrangler.jsonc`](../wrangler.jsonc). Create the resources once:
 
   ```bash
   npx wrangler d1 create hg-arcade        # put the returned id in wrangler.jsonc
-  npx wrangler r2 bucket create hg-arcade-files
+  npx wrangler secret put GETPRONTO_API_KEY
   npm run db:migrate:remote
   npx wrangler deploy
   ```
 
+  The `r2_buckets` block in `wrangler.jsonc` exists only so `wrangler dev` has a
+  local file store. Delete it before `wrangler deploy` unless the bucket really
+  exists in your account — a binding to a missing bucket fails the deploy.
+
 **itch.io and Cloudflare Pages.** The public site is a static SPA and could be
-served from Pages, but the dashboard, catalogue, D1 records and R2 artwork need
+served from Pages, but the dashboard, catalogue and D1 records need
 the Worker in front. Do not deploy `dist/` to Pages *instead* of the Worker: the
 admin would 404 and every `/api/*` request would fail. The current single Worker
 (Worker + `ASSETS`) is the supported shape, and it is already Pages-compatible in
@@ -71,20 +76,22 @@ the sense that it serves the static build. Connecting a Cloudflare Pages project
 as a custom domain in front of this Worker would put a second, static layer where
 the API needs to answer, so keep the existing Worker custom domain.
 
-No new environment variables are required for itch.io embedding. The legacy build
-limits (`MAX_BUILD_BYTES`, `MAX_FILE_BYTES`, `MAX_BUILD_FILES`, `MAX_ZIP_BYTES`)
-still apply to the retained `/play/**` endpoints, but new listings never use them.
-Apply migration `0003_itch_games.sql` with `npm run db:migrate` locally and
+No new environment variables are required for itch.io embedding. Apply migration
+`0003_itch_games.sql` with `npm run db:migrate` locally and
 `npm run db:migrate:remote` on the deployment; it adds the two itch.io address
-columns and leaves existing artwork and build rows untouched.
+columns and leaves existing artwork untouched.
 
-Background music needs **no extra resource or environment variable**: uploads go
-to the same `FILES` R2 bucket under `music/<uuid>.<ext>` and their metadata to the
-`site_settings` row created by migration `0002`. The 12 MB audio limit and the
-accepted formats are application constants (`src/shared/music.ts`), not Worker
-vars. If the bucket is missing or the configured object is later deleted, the
-public site simply reports no music and the dashboard shows a "file is missing"
-warning; upload the track again (or remove it) to clear that state.
+**Image and audio storage is `GETPRONTO_API_KEY`.** One secret covers cover art,
+screenshots, the About portrait and the background track; no bucket, no binding.
+Uploads use the documented three-step REST flow (`presign` → `PUT` → `confirm`)
+from the Worker, and the stored reference carries the file id (for deletion) and
+its CDN address (for delivery). The free plan allows 5 GB stored, 10 GB/month
+delivered and 10 MB per file; artwork is capped at 8 MB in the application, and
+the dashboard is told the smaller of 12 MB and the store limit for audio. If the
+key is missing, every upload answers `503 unconfigured` and the rest of the site
+works normally. If a file is later deleted in the Get Pronto dashboard, the
+public site reports no music / no artwork and the dashboard shows a missing-file
+warning; upload it again to clear that state.
 
 ## Secrets
 
@@ -100,6 +107,7 @@ bundle. Set these as Worker secrets (Sites → Secrets, or `npx wrangler secret 
 | `EMAIL_FROM` | Email delivery | Verified sender, e.g. `Arcade <verify@your-domain.example>`. |
 | `EMAIL_PROVIDER` | Optional | `resend` forces Resend; the default `auto` uses it as soon as a key and sender exist. |
 | `EMAIL_REPLY_TO` | Optional | Shown on verification mail. |
+| `GETPRONTO_API_KEY` | Image and audio uploads | A Get Pronto **secret** key (`pronto_sk_…`) from *API keys* in app.getpronto.io. Never a public key: this key also deletes files. Without it the site runs, but uploads answer `503 unconfigured`. |
 
 Where each of those values goes, what to type and how to check delivery without
 seeing a code is spelled out step by step in [SETUP_EMAILS.md](../SETUP_EMAILS.md).
@@ -123,10 +131,12 @@ limits, is in [SECURITY.md](SECURITY.md#enabling-real-delivery-with-resend).
    the dashboard unlock — a password alone never does.
 4. **Remove `OWNER_SETUP_TOKEN`** and redeploy. The route is already refused once a
    password exists (`409 already_setup`); removing the secret is the second lock.
-5. Set the **public** contact address separately under **Site content → Contact**.
+5. Add `GETPRONTO_API_KEY` (Sites → Secrets, or `npx wrangler secret put`) and
+   upload one image to confirm storage works before adding real content.
+6. Set the **public** contact address separately under **Site content → Contact**.
    The three addresses are independent records written by different endpoints, and
    the server refuses to publish a private one as the public address.
-6. Fill in **Site content → About** and publish. The public pages update without a
+7. Fill in **Site content → About** and publish. The public pages update without a
    rebuild or a redeploy.
 
 There is no seeded password, no demo account and no way to become the owner by
@@ -154,8 +164,8 @@ binding) and keep `APP_ORIGIN` in step with it.
 | --- | --- |
 | `/assets/*` | `public, max-age=31536000, immutable` — content-hashed |
 | `/api/catalogue`, `/api/content/*`, `/api/settings` | `public, max-age=0, must-revalidate` + weak `ETag`, so an unchanged body costs a 304 |
-| `/api/media/*` (artwork, avatars, builds) | `public, max-age=0, must-revalidate` + object ETag |
-| `/play/<slug>/*` (legacy local build) | entry document and JSON `no-cache`; every other build file `public, max-age=0, must-revalidate` + object ETag |
+| `/api/media/*` (artwork, avatars) | `302` to the CDN for a Get Pronto reference; `public, max-age=0, must-revalidate` + object ETag for a legacy bucket key |
+| the media CDN (artwork, audio) | cross-origin, cached by Get Pronto and the browser |
 | the itch.io frame | cross-origin, cached by itch.io and the browser; never stored by this site’s service worker |
 | admin and auth routes | `private, no-store` |
 | `index.html`, `sw.js` | `no-cache`, so a deploy is picked up |

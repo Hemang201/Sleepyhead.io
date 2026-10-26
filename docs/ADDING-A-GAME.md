@@ -61,7 +61,7 @@ to see itch.io's own message.
 
 Thumbnail, banner and up to twelve screenshots. PNG, JPEG, WebP, GIF or AVIF, 8 MB
 each; the type is sniffed from the bytes, not trusted from the filename. The files
-are stored in this site's R2 bucket and served from `/api/media/**` — nothing is
+are uploaded to your Get Pronto account and rendered from its CDN — nothing is
 fetched from itch.io automatically, and missing artwork shows the site's labelled
 placeholder. A game cannot be published without cover art.
 

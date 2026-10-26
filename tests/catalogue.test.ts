@@ -5,7 +5,6 @@ import {
   GAME_STATUSES,
   STATUS_META,
   hasItchPlayer,
-  isActivatableBuild,
   publishBlockers,
   isCatalogueGame,
   isFixtureSlug,
@@ -187,13 +186,3 @@ describe('publishing needs a playable itch.io listing', () => {
   });
 });
 
-describe('build activation', () => {
-  it('only lets a finished build go live', () => {
-    expect(isActivatableBuild('ready')).toBe(true);
-    expect(isActivatableBuild('active')).toBe(true);
-    expect(isActivatableBuild('superseded')).toBe(true);
-    expect(isActivatableBuild('uploading')).toBe(false);
-    expect(isActivatableBuild('failed')).toBe(false);
-    expect(isActivatableBuild('rejected')).toBe(false);
-  });
-});

@@ -8,12 +8,11 @@
  *   - /api/* — the catalogue is served by the Worker from a database and must
  *     never be answered from a stale cache;
  *   - /auth/* — sign-in, callback and sign-out must always reach the provider;
- *   - /play/* — game builds are large, uploaded by the owner and change
- *     independently, so they are always fetched live;
- *   - anything cross-origin.
+ *   - /media, /assets from another origin, and the itch.io frame — anything
+ *     cross-origin is left to the browser.
  *
  * This means the shell loads offline once visited, and games are never claimed
- * to work offline.
+ * to work offline: they are played from an itch.io frame on another origin.
  */
 
 const VERSION = 'hg-v1';
@@ -23,13 +22,7 @@ const OFFLINE_URL = '/offline.html';
 
 const SHELL_FILES = ['/', OFFLINE_URL, '/favicon.svg', '/manifest.webmanifest', '/icons/icon-192.png'];
 
-/**
- * A hosted game build is /games/<slug>/<file>. The site's own game page is the
- * SPA route /games/<slug>, which must still be served from the shell offline —
- * so only paths with a second segment count as builds.
- */
-/** Game builds, API responses and auth traffic are always live, never cached. */
-const isGameBuild = (pathname) => pathname.startsWith('/play/');
+/** API, media streaming and auth traffic are always live, never cached. */
 const isApi = (pathname) => pathname.startsWith('/api/') || pathname.startsWith('/auth/');
 
 /** Hashed build output lives in its own cache; everything else goes in the shell cache. */
@@ -81,8 +74,8 @@ self.addEventListener('install', (event) => {
 
 /**
  * The page tells us what it actually loaded, so client-side route chunks are
- * cached too. Game builds are filtered out: they are large and change
- * independently, and are never served stale.
+ * cached too. Anything cross-origin is filtered out: artwork and audio are
+ * served by the media CDN and the games by itch.io.
  */
 self.addEventListener('message', (event) => {
   const data = event.data;
@@ -93,7 +86,7 @@ self.addEventListener('message', (event) => {
       data.urls.filter((url) => {
         try {
           const parsed = new URL(String(url));
-          return parsed.origin === self.location.origin && !isGameBuild(parsed.pathname);
+          return parsed.origin === self.location.origin;
         } catch {
           return false;
         }
@@ -117,7 +110,7 @@ self.addEventListener('fetch', (event) => {
 
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
-  if (isGameBuild(url.pathname) || isApi(url.pathname)) return;
+  if (isApi(url.pathname)) return;
 
   // Navigations: network first, offline page as the last resort.
   if (request.mode === 'navigate') {

@@ -154,15 +154,6 @@ export function latestGameUpdate(games: Pick<PublicGame, 'updatedAt'>[]): string
   );
 }
 
-/**
- * Which legacy local-build states may become the live build. The public site no
- * longer plays locally hosted builds — itch.io does — but the records are kept
- * so existing data and the archived `/play/` routes stay intact.
- */
-export function isActivatableBuild(status: BuildSummary['status']): boolean {
-  return status === 'ready' || status === 'active' || status === 'superseded';
-}
-
 /** The itch.io configuration a game is played through. */
 export interface ItchPlayerConfig {
   /** Canonical public project address, when one is saved. */
@@ -219,18 +210,6 @@ export interface GameArtwork {
   placeholder: boolean;
 }
 
-export interface BuildSummary {
-  id: string;
-  version: string | null;
-  status: 'uploading' | 'ready' | 'active' | 'superseded' | 'failed' | 'rejected';
-  entryPath: string | null;
-  fileCount: number;
-  totalBytes: number;
-  createdAt: string;
-  readyAt: string | null;
-  notes: string | null;
-}
-
 /** A game exactly as the public site is allowed to see it. */
 export interface PublicGame {
   id: string;
@@ -254,11 +233,6 @@ export interface PublicGame {
   artwork: GameArtwork;
   /** The itch.io game this listing launches, parsed and canonicalised. */
   itch: ItchPlayerConfig;
-  /**
-   * Legacy summary of a locally hosted build. The public site no longer plays
-   * these; the field is kept so existing rows and `/play/` links keep working.
-   */
-  build: { available: boolean; version: string | null; entryPath: string | null };
   /** Only ever true for a published game with a saved itch.io player. */
   playable: boolean;
   /** Absolute itch.io embed address, when playable. */
@@ -273,10 +247,11 @@ export interface AdminGame extends PublicGame {
   createdAt: string;
   publishedAt: string | null;
   archivedAt: string | null;
-  activeBuildId: string | null;
-  /** Raw R2 keys, so the editor can show what replacing an asset will delete. */
+  /**
+   * The stored storage references, so the editor can show what replacing an
+   * asset will delete. Either a legacy R2 key or a Get Pronto reference.
+   */
   artworkKeys: { thumbnail: string | null; banner: string | null; screenshots: string[] };
-  builds: BuildSummary[];
 }
 
 export interface CatalogueResponse {

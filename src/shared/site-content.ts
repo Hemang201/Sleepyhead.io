@@ -21,6 +21,7 @@
  */
 
 import { site } from '../data/site';
+import { isMediaStorageValue } from './media';
 
 /* ------------------------------------------------------------- primitives */
 
@@ -120,7 +121,7 @@ export interface AboutContent {
   tagline: string;
   intro: string;
   bio: string[];
-  /** R2 key for the uploaded portrait; the API turns it into a URL. */
+  /** Storage reference for the uploaded portrait; the API turns it into a URL. */
   avatarKey: string | null;
   avatarAlt: string;
   skills: string[];
@@ -529,7 +530,8 @@ export function normaliseAbout(value: unknown): AboutContent {
     tagline: plainText(source.tagline, CONTENT_LIMITS.tagline),
     intro: plainText(source.intro, CONTENT_LIMITS.intro),
     bio: strings(source.bio, CONTENT_LIMITS.bioItems, CONTENT_LIMITS.bioItem),
-    avatarKey: typeof source.avatarKey === 'string' && /^content\/avatar\//.test(source.avatarKey) ? source.avatarKey : null,
+    // Either a legacy R2 key under `content/avatar/` or a Get Pronto reference.
+    avatarKey: isMediaStorageValue(source.avatarKey, 'content/avatar/') ? (source.avatarKey as string) : null,
     avatarAlt: plainText(source.avatarAlt, CONTENT_LIMITS.entryDetail),
     skills: strings(source.skills, CONTENT_LIMITS.skills),
     interests: strings(source.interests, CONTENT_LIMITS.interests),

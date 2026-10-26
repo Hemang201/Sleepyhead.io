@@ -1571,9 +1571,9 @@ body[data-banner='true'] .floating-stack {
  * It is sized from the viewport height rather than a forced 16:9 letterbox: the
  * previous `aspect-ratio: 16/9` with a 340px floor gave a build ~380px of height
  * at desktop widths, which is less than an ordinary build's own document, so
- * every game arrived with a scrollbar inside the frame. Uploaded builds are
- * documents, not fixed-ratio canvases, so the player hands them a real area and
- * lets fullscreen hand them the whole screen.
+ * every game arrived with a scrollbar inside the frame. Games are documents,
+ * not fixed-ratio canvases, so the player hands them a real area and lets
+ * fullscreen hand them the whole screen.
  *
  * Viewport height alone is not enough either: a wide, short window (a laptop at
  * 1366×768, or any window after browser zoom) leaves a very wide column but only

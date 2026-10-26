@@ -21,6 +21,8 @@ import {
   type SocialContent,
 } from '../../src/shared/site-content';
 import { DEFAULT_MUSIC, normaliseMusic, type MusicConfig } from '../../src/shared/music';
+import { isMediaRefObject } from '../../src/shared/media';
+import { deleteMedia, mediaUrl, type MediaEnv } from './media-store';
 import {
   discardContentDraft,
   getContentRowOrSeed,
@@ -144,27 +146,26 @@ export async function writeMusic(db: D1Database, value: unknown): Promise<MusicC
   return music;
 }
 
-/** Only ever touches the `music/` prefix, so builds and artwork are safe. */
+/** The legacy R2 key shape for the audio file: only ever inside `music/`. */
 export function isMusicKey(value: unknown): value is string {
   return typeof value === 'string' && value.startsWith('music/');
 }
 
 /**
- * Restores the shipped track and deletes every uploaded one.
+ * Restores the shipped track and deletes the uploaded file it referenced.
  *
  * Used by the local-development reset the verification harness calls before a
  * run, so a previous run's upload can never be mistaken for the owner's own
- * configuration. Only the `music/` prefix is listed and deleted, so game builds
- * and artwork are never at risk; the document is then rewritten to the bundled
- * default instead of being deleted, which keeps the public page's behaviour
- * identical to a fresh deployment.
+ * configuration. It deletes exactly the reference in the document — there is no
+ * prefix sweep any more, so a track outside the document cannot be removed — and
+ * then rewrites the document to the bundled default instead of deleting it,
+ * which keeps the public page's behaviour identical to a fresh deployment.
  */
-export async function resetMusicToDefaults(env: { DB: D1Database; FILES: R2Bucket }): Promise<number> {
-  const listed = await env.FILES.list({ prefix: 'music/', limit: 1000 });
-  const keys = listed.objects.map((object) => object.key).filter(isMusicKey);
-  if (keys.length > 0) await env.FILES.delete(keys);
+export async function resetMusicToDefaults(env: MediaEnv & { DB: D1Database }): Promise<number> {
+  const current = await readMusic(env.DB);
+  const removed = current.storageKey ? Number(await deleteMedia(env, current.storageKey)) : 0;
   await writeMusic(env.DB, DEFAULT_MUSIC);
-  return keys.length;
+  return removed;
 }
 
 /** Reads the document just written, so write/publish/discard all return the
@@ -234,18 +235,39 @@ export function isAvatarKey(value: unknown): value is string {
 }
 
 /**
- * Deletes avatar objects that no live document references any more.
+ * Deletes portrait files that no live document references any more.
  *
- * Only ever touches this prefix, so game builds and artwork are never at risk,
- * and it runs after the database has already been updated — a failure here
- * leaves an orphaned object, never a broken page.
+ * It takes the replaced references explicitly rather than sweeping a prefix:
+ * Get Pronto has no cheap "list and delete the rest", and naming the candidates
+ * means nothing outside them can ever be removed. It runs after the database has
+ * already been updated, so a failure here leaves an orphaned object, never a
+ * broken page.
  */
-export async function pruneAvatars(env: { FILES: R2Bucket }, keep: (string | null | undefined)[]): Promise<number> {
-  const keepSet = new Set(keep.filter(isAvatarKey));
-  const listed = await env.FILES.list({ prefix: AVATAR_PREFIX, limit: 100 });
-  const doomed = listed.objects.map((object) => object.key).filter((key) => !keepSet.has(key));
-  if (doomed.length > 0) await env.FILES.delete(doomed);
-  return doomed.length;
+export async function retireAvatars(
+  env: MediaEnv,
+  candidates: (string | null | undefined)[],
+  keep: (string | null | undefined)[] = [],
+): Promise<number> {
+  const live = new Set(keep.filter((value): value is string => typeof value === 'string' && value.length > 0));
+  let removed = 0;
+  for (const candidate of candidates) {
+    if (typeof candidate !== 'string' || candidate.length === 0 || live.has(candidate)) continue;
+    // Only ever a portrait: a legacy `content/avatar/` key or a media reference
+    // this site wrote itself. A game's artwork can never be passed in here.
+    if (!isAvatarKey(candidate) && !isMediaRefObject(candidate)) continue;
+    if (await deleteMedia(env, candidate)) removed += 1;
+  }
+  return removed;
+}
+
+/** True for the two shapes `music.storageKey` can legitimately hold. */
+export function isMusicStorage(value: unknown): value is string {
+  return isMusicKey(value) || isMediaRefObject(value);
+}
+
+/** The public address of the uploaded track, when the file lives on a CDN. */
+export function musicDeliveryUrl(config: MusicConfig): string | null {
+  return mediaUrl(config.storageKey);
 }
 
 export async function avatarKeyFor(db: D1Database, preview: boolean): Promise<string | null> {

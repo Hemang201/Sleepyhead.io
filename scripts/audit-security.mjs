@@ -199,9 +199,6 @@ const PROTECTED = [
   { method: 'POST', path: '/api/admin/content/about/publish', label: 'publish About' },
   { method: 'PUT', path: '/api/admin/content/social', body: { links: [] }, label: 'edit social links' },
   { method: 'PUT', path: '/api/admin/settings/appearance', body: {}, label: 'change site settings' },
-  { method: 'POST', path: '/api/admin/games/x/builds', body: {}, label: 'start a build upload' },
-  { method: 'PUT', path: '/api/admin/builds/x/files?path=index.html', body: 'x', label: 'upload a build file' },
-  { method: 'POST', path: '/api/admin/builds/x/activate', label: 'activate a build' },
   { method: 'POST', path: '/api/admin/games/x/artwork?kind=thumbnail', body: 'x', label: 'upload artwork' },
   { method: 'PUT', path: '/api/admin/content/about/avatar', body: 'x', label: 'upload a portrait' },
   { method: 'GET', path: '/api/admin/security/state', label: 'read security state' },
@@ -227,7 +224,6 @@ async function main() {
   /* ------------------------------------------------ 1. the access matrix */
 
   const gamesBefore = Number((await d1('SELECT COUNT(*) AS total FROM games'))[0].total);
-  const buildsBefore = Number((await d1('SELECT COUNT(*) AS total FROM builds'))[0].total);
   const uploadsBefore = Number((await d1('SELECT COUNT(*) AS total FROM upload_events'))[0].total);
 
   for (const endpoint of PROTECTED) {
@@ -265,13 +261,8 @@ async function main() {
 
   const gamesAfter = Number((await d1('SELECT COUNT(*) AS total FROM games'))[0].total);
   check('unauthorised writes: nothing was written', gamesBefore === gamesAfter, `${gamesBefore} games before and after`);
-  const buildsAfter = Number((await d1('SELECT COUNT(*) AS total FROM builds'))[0].total);
   const uploadsAfter = Number((await d1('SELECT COUNT(*) AS total FROM upload_events'))[0].total);
-  check(
-    'unauthorised uploads: no build row and no upload event was written',
-    buildsAfter === buildsBefore && uploadsAfter === uploadsBefore,
-    `${buildsBefore}→${buildsAfter} builds, ${uploadsBefore}→${uploadsAfter} upload events`,
-  );
+  check('unauthorised uploads: no upload event was written', uploadsAfter === uploadsBefore, `${uploadsBefore}→${uploadsAfter} upload events`);
 
   /* -------------------------------------------------- 2. the password factor */
 

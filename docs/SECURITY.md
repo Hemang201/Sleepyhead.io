@@ -182,11 +182,15 @@ untrusted at every step:
   inspected, so failures are handled by telling the visitor what to do — the
   direct itch.io link is always present and the timeout explains a stalled embed
   instead of leaving a spinner.
-- **Uploads still belong to this site.** Cover art and screenshots are sniffed by
-  magic bytes, size-capped, stored under server-generated keys in `FILES`, and
-  their read routes require the game to be publicly visible or the request to
-  carry a verified owner session. Deleting a listing deletes those objects; it
-  never touches itch.io.
+- **Uploads still belong to you, not to itch.io.** Cover art and screenshots are
+  sniffed by magic bytes, size-capped, and stored in your own Get Pronto account
+  under server-generated names. The upload endpoint requires a verified owner
+  session, and the API key is a server-side secret: it is never in the bundle, a
+  response or a log line. Deleting a listing deletes those files; it never touches
+  itch.io. One trade-off is worth stating plainly: a Get Pronto file is addressed
+  by its own URL, so a draft's artwork is not gated behind a session the way the
+  old `/api/media/**` route was — the address is unguessable (a UUID filename) but
+  it is public if it is shared.
 
 ## Email delivery: configured, or honestly reported as unconfigured
 

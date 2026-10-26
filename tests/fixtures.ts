@@ -30,7 +30,6 @@ function game(
     estimatedPlaytime: null,
     artwork: { thumbnail: null, banner: null, screenshots: [], placeholder: true },
     itch: { projectUrl: null, embedUrl: null },
-    build: { available: false, version: null, entryPath: null },
     playable: false,
     playUrl: null,
     path: `/games/${slug}`,

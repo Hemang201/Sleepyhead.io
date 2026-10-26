@@ -3,7 +3,7 @@
  *
  * `wrangler dev` compiles worker/index.ts on its own; the deployed platform
  * uploads prebuilt modules, so this produces the exact artifact that ships.
- * Dependencies (the auth SDK, its JWT library, fflate) are bundled in: the
+ * Dependencies (the auth SDK and its JWT library) are bundled in: the
  * runtime has no package manager.
  */
 import { build } from 'esbuild';

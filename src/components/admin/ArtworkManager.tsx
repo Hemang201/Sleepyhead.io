@@ -1,7 +1,7 @@
 import { useRef, useState, type DragEvent } from 'react';
 
 import type { AdminGame } from '../../shared/catalogue';
-import { formatBytes, sniffImage } from '../../shared/build-files';
+import { formatBytes, sniffImage } from '../../shared/media-files';
 import { api } from '../../lib/api';
 import { useAdmin, useAdminAction } from '../../lib/admin';
 import { ConfirmDialog } from './ConfirmDialog';

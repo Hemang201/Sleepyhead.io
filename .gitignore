@@ -29,6 +29,6 @@ verification
 .dev.vars.*
 !.dev.vars.example
 
-# Local emulation of D1 and R2 (`wrangler dev`). Disposable, machine-local, and
-# it holds uploaded fixture builds — never part of the project or a deployment.
+# Local emulation of D1 and the fallback file store (`wrangler dev`).
+# Disposable, machine-local, never part of the project or a deployment.
 .wrangler/

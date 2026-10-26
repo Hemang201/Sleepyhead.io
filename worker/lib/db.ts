@@ -1,6 +1,7 @@
-import type { Accent, AdminGame, BuildSummary, CategoryId, GameControls, GameStatus, PublicGame } from '../../src/shared/catalogue';
-import { isActivatableBuild, isCatalogueGame, isPubliclyVisible } from '../../src/shared/catalogue';
+import type { Accent, AdminGame, CategoryId, GameControls, GameStatus, PublicGame } from '../../src/shared/catalogue';
+import { isCatalogueGame, isPubliclyVisible } from '../../src/shared/catalogue';
 import { parseItchEmbedUrl, parseItchProjectUrl } from '../../src/shared/itch';
+import { mediaRefUrl } from '../../src/shared/media';
 
 /**
  * Every database read and write in the platform.
@@ -34,24 +35,10 @@ export interface GameRow {
   screenshots: string;
   itch_url: string | null;
   itch_embed_url: string | null;
-  active_build_id: string | null;
   created_at: string;
   updated_at: string;
   published_at: string | null;
   archived_at: string | null;
-}
-
-export interface BuildRow {
-  id: string;
-  game_id: string;
-  version: string | null;
-  status: BuildSummary['status'];
-  entry_path: string | null;
-  file_count: number;
-  total_bytes: number;
-  notes: string | null;
-  created_at: string;
-  ready_at: string | null;
 }
 
 export function nowIso(): string {
@@ -72,37 +59,18 @@ export function parseJson<T>(value: string | null | undefined, fallback: T): T {
 
 const ACCENT_SET = new Set<Accent>(['cyan', 'violet', 'pink', 'lime', 'orange', 'blue']);
 
-export function artworkUrl(gameId: string, kind: 'thumbnail' | 'banner'): string {
-  return `/api/media/artwork/${gameId}/${kind}`;
+export function artworkUrl(gameId: string, kind: 'thumbnail' | 'banner', ref?: string | null): string {
+  // A Get Pronto reference carries its own CDN address, which is where the
+  // browser should fetch it from; a legacy R2 key is served by this Worker.
+  return mediaRefUrl(ref) ?? `/api/media/artwork/${gameId}/${kind}`;
 }
 
-export function screenshotUrl(gameId: string, index: number): string {
-  return `/api/media/screenshot/${gameId}/${index}`;
+export function screenshotUrl(gameId: string, index: number, ref?: string | null): string {
+  return mediaRefUrl(ref) ?? `/api/media/screenshot/${gameId}/${index}`;
 }
 
-export function buildSummary(row: BuildRow): BuildSummary {
-  return {
-    id: row.id,
-    version: row.version,
-    status: row.status,
-    entryPath: row.entry_path,
-    fileCount: row.file_count,
-    totalBytes: row.total_bytes,
-    createdAt: row.created_at,
-    readyAt: row.ready_at,
-    notes: row.notes,
-  };
-}
-
-function baseGame(row: GameRow, builds: BuildRow[]): Omit<AdminGame, 'builds'> {
+function baseGame(row: GameRow): AdminGame {
   const screenshots = parseJson<string[]>(row.screenshots, []);
-  const activeBuild = builds.find((build) => build.id === row.active_build_id);
-  /*
-   * A build with an entry path is not automatically a working build: a build
-   * that failed mid-upload keeps the path it had from an earlier state, so the
-   * status has to be finished as well as the path present.
-   */
-  const hasBuild = Boolean(activeBuild && activeBuild.entry_path && isActivatableBuild(activeBuild.status));
   /*
    * Stored addresses are re-parsed on the way out. The Worker only ever writes
    * canonical values, but a row edited by hand or written before validation
@@ -138,37 +106,31 @@ function baseGame(row: GameRow, builds: BuildRow[]): Omit<AdminGame, 'builds'> {
     createdAt: row.created_at,
     publishedAt: row.published_at,
     archivedAt: row.archived_at,
-    activeBuildId: row.active_build_id,
     artworkKeys: {
       thumbnail: row.thumbnail_key,
       banner: row.banner_key,
       screenshots,
     },
     artwork: {
-      thumbnail: row.thumbnail_key ? artworkUrl(row.id, 'thumbnail') : null,
-      banner: row.banner_key ? artworkUrl(row.id, 'banner') : null,
-      screenshots: screenshots.map((_key, index) => ({ url: screenshotUrl(row.id, index), alt: `${row.title} screenshot ${index + 1}` })),
+      thumbnail: row.thumbnail_key ? artworkUrl(row.id, 'thumbnail', row.thumbnail_key) : null,
+      banner: row.banner_key ? artworkUrl(row.id, 'banner', row.banner_key) : null,
+      screenshots: screenshots.map((key, index) => ({ url: screenshotUrl(row.id, index, key), alt: `${row.title} screenshot ${index + 1}` })),
       placeholder: !row.thumbnail_key && !row.banner_key,
     },
     itch,
-    build: {
-      available: hasBuild,
-      version: activeBuild?.version ?? null,
-      entryPath: activeBuild?.entry_path ?? null,
-    },
     playable,
     playUrl: playable ? itch.embedUrl : null,
     path: `/games/${row.slug}`,
   };
 }
 
-export function toAdminGame(row: GameRow, builds: BuildRow[]): AdminGame {
-  return { ...baseGame(row, builds), builds: builds.map(buildSummary) };
+export function toAdminGame(row: GameRow): AdminGame {
+  return baseGame(row);
 }
 
-export function toPublicGame(row: GameRow, builds: BuildRow[]): PublicGame {
-  const { listed: _listed, createdAt: _createdAt, publishedAt: _publishedAt, archivedAt: _archivedAt, activeBuildId: _activeBuildId, artworkKeys: _artworkKeys, builds: _builds, ...rest } =
-    toAdminGame(row, builds);
+export function toPublicGame(row: GameRow): PublicGame {
+  const { listed: _listed, createdAt: _createdAt, publishedAt: _publishedAt, archivedAt: _archivedAt, artworkKeys: _artworkKeys, ...rest } =
+    toAdminGame(row);
   return rest;
 }
 
@@ -179,25 +141,9 @@ export function isVisible(row: GameRow): boolean {
 
 /* ------------------------------------------------------------------- games */
 
-export async function listBuilds(db: D1Database, gameIds: string[]): Promise<Map<string, BuildRow[]>> {
-  const grouped = new Map<string, BuildRow[]>();
-  if (gameIds.length === 0) return grouped;
-  const placeholders = gameIds.map(() => '?').join(',');
-  const { results } = await db
-    .prepare(`SELECT * FROM builds WHERE game_id IN (${placeholders}) ORDER BY created_at DESC`)
-    .bind(...gameIds)
-    .all<BuildRow>();
-  for (const row of results ?? []) {
-    grouped.set(row.game_id, [...(grouped.get(row.game_id) ?? []), row]);
-  }
-  return grouped;
-}
-
 export async function listAllGames(db: D1Database): Promise<AdminGame[]> {
   const { results } = await db.prepare('SELECT * FROM games ORDER BY updated_at DESC').all<GameRow>();
-  const rows = results ?? [];
-  const builds = await listBuilds(db, rows.map((row) => row.id));
-  return rows.map((row) => toAdminGame(row, builds.get(row.id) ?? []));
+  return (results ?? []).map((row) => toAdminGame(row));
 }
 
 /**
@@ -205,9 +151,9 @@ export async function listAllGames(db: D1Database): Promise<AdminGame[]> {
  *
  * A row existing in the database is not the same thing as a published game.
  * Drafts, archives, unlisted work, announcements and temporarily unavailable
- * entries are all excluded, and a published row without an activated, valid
- * build is excluded too — a card with no game behind it is worse than an honest
- * empty shelf. The public site decides its empty state from this one list.
+ * entries are all excluded, and a published row without a saved itch.io player
+ * is excluded too — a card with no game behind it is worse than an honest empty
+ * shelf. The public site decides its empty state from this one list.
  */
 export async function listPublicGames(db: D1Database): Promise<PublicGame[]> {
   const { results } = await db
@@ -217,11 +163,7 @@ export async function listPublicGames(db: D1Database): Promise<PublicGame[]> {
        ORDER BY featured DESC, updated_at DESC`,
     )
     .all<GameRow>();
-  const rows = results ?? [];
-  const builds = await listBuilds(db, rows.map((row) => row.id));
-  return rows
-    .map((row) => toPublicGame(row, builds.get(row.id) ?? []))
-    .filter(isCatalogueGame);
+  return (results ?? []).map((row) => toPublicGame(row)).filter(isCatalogueGame);
 }
 
 export async function getGameRow(db: D1Database, idOrSlug: string, by: 'id' | 'slug'): Promise<GameRow | null> {
@@ -229,11 +171,9 @@ export async function getGameRow(db: D1Database, idOrSlug: string, by: 'id' | 's
   return db.prepare(`SELECT * FROM games WHERE ${column} = ?`).bind(idOrSlug).first<GameRow>();
 }
 
-export async function getGameWithBuilds(db: D1Database, idOrSlug: string, by: 'id' | 'slug'): Promise<AdminGame | null> {
+export async function getAdminGame(db: D1Database, idOrSlug: string, by: 'id' | 'slug'): Promise<AdminGame | null> {
   const row = await getGameRow(db, idOrSlug, by);
-  if (!row) return null;
-  const builds = await listBuilds(db, [row.id]);
-  return toAdminGame(row, builds.get(row.id) ?? []);
+  return row ? toAdminGame(row) : null;
 }
 
 export async function slugExists(db: D1Database, slug: string, exceptId?: string): Promise<boolean> {
@@ -388,112 +328,6 @@ export async function setArtworkKey(
 
 export async function setScreenshotKeys(db: D1Database, id: string, keys: string[]): Promise<void> {
   await db.prepare('UPDATE games SET screenshots = ?, updated_at = ? WHERE id = ?').bind(JSON.stringify(keys), nowIso(), id).run();
-}
-
-/* ------------------------------------------------------------------- builds */
-
-export async function createBuild(db: D1Database, build: { id: string; gameId: string; version: string | null; notes: string | null }): Promise<void> {
-  await db
-    .prepare('INSERT INTO builds (id, game_id, version, status, notes, created_at) VALUES (?,?,?,?,?,?)')
-    .bind(build.id, build.gameId, build.version, 'uploading', build.notes, nowIso())
-    .run();
-}
-
-export async function getBuildRow(db: D1Database, buildId: string): Promise<BuildRow | null> {
-  return db.prepare('SELECT * FROM builds WHERE id = ?').bind(buildId).first<BuildRow>();
-}
-
-export async function getBuildFiles(db: D1Database, buildId: string): Promise<{ path: string; size: number; content_type: string }[]> {
-  const { results } = await db
-    .prepare('SELECT path, size, content_type FROM build_files WHERE build_id = ? ORDER BY path')
-    .bind(buildId)
-    .all<{ path: string; size: number; content_type: string }>();
-  return results ?? [];
-}
-
-export async function getBuildFile(db: D1Database, buildId: string, path: string): Promise<{ size: number; content_type: string } | null> {
-  return db
-    .prepare('SELECT size, content_type FROM build_files WHERE build_id = ? AND path = ?')
-    .bind(buildId, path)
-    .first<{ size: number; content_type: string }>();
-}
-
-export async function recordBuildFile(
-  db: D1Database,
-  buildId: string,
-  file: { path: string; size: number; contentType: string },
-): Promise<void> {
-  /*
-   * The file row and the cached totals are one logical write: a file that is
-   * stored but not counted makes the upload quotas wrong, and a rollup without
-   * the row describes a file that does not exist. D1 `batch` runs both in one
-   * implicit transaction, so a failed update cannot leave the build half-counted.
-   */
-  await db.batch([
-    db
-      .prepare(
-        `INSERT INTO build_files (build_id, path, size, content_type) VALUES (?,?,?,?)
-         ON CONFLICT(build_id, path) DO UPDATE SET size = excluded.size, content_type = excluded.content_type`,
-      )
-      .bind(buildId, file.path, file.size, file.contentType),
-    db
-      .prepare(
-        `UPDATE builds SET
-           file_count = (SELECT COUNT(*) FROM build_files WHERE build_id = ?1),
-           total_bytes = (SELECT COALESCE(SUM(size), 0) FROM build_files WHERE build_id = ?1)
-         WHERE id = ?1`,
-      )
-      .bind(buildId),
-  ]);
-}
-
-export async function markBuildStatus(
-  db: D1Database,
-  buildId: string,
-  status: BuildSummary['status'],
-  entryPath?: string | null,
-  notes?: string | null,
-): Promise<void> {
-  const ready = status === 'ready' || status === 'active';
-  await db
-    .prepare(
-      `UPDATE builds SET status = ?, entry_path = COALESCE(?, entry_path), notes = COALESCE(?, notes),
-        ready_at = CASE WHEN ? = 1 THEN COALESCE(ready_at, ?) ELSE ready_at END
-       WHERE id = ?`,
-    )
-    .bind(status, entryPath ?? null, notes ?? null, ready ? 1 : 0, nowIso(), buildId)
-    .run();
-}
-
-/**
- * Makes a build the live one for its game. The previously active build is kept
- * (marked `superseded`) so it can be restored with one click.
- *
- * The three statements are one batch: a partial activation would leave two
- * builds marked active, or a game pointing at a build that was never switched,
- * and the public page reads exactly those rows.
- */
-export async function activateBuild(db: D1Database, gameId: string, buildId: string): Promise<void> {
-  const timestamp = nowIso();
-  await db.batch([
-    db.prepare("UPDATE builds SET status = 'superseded' WHERE game_id = ? AND status = 'active'").bind(gameId),
-    db.prepare("UPDATE builds SET status = 'active', ready_at = COALESCE(ready_at, ?) WHERE id = ? AND game_id = ?").bind(timestamp, buildId, gameId),
-    db.prepare('UPDATE games SET active_build_id = ?, updated_at = ? WHERE id = ?').bind(buildId, timestamp, gameId),
-  ]);
-}
-
-export async function deleteBuildRow(db: D1Database, buildId: string): Promise<void> {
-  await db.prepare('DELETE FROM build_files WHERE build_id = ?').bind(buildId).run();
-  await db.prepare('DELETE FROM builds WHERE id = ?').bind(buildId).run();
-}
-
-export async function clearActiveBuild(db: D1Database, gameId: string): Promise<void> {
-  await db.prepare('UPDATE games SET active_build_id = NULL, updated_at = ? WHERE id = ?').bind(nowIso(), gameId).run();
-}
-
-export async function buildsForGame(db: D1Database, gameId: string): Promise<BuildRow[]> {
-  const { results } = await db.prepare('SELECT * FROM builds WHERE game_id = ? ORDER BY created_at DESC').bind(gameId).all<BuildRow>();
-  return results ?? [];
 }
 
 /* ------------------------------------------------------------------- admins */
@@ -964,7 +798,5 @@ export async function recentlyUpdated(db: D1Database, limit = 6): Promise<AdminG
     .prepare('SELECT * FROM games WHERE status != ? ORDER BY updated_at DESC LIMIT ?')
     .bind('archived', limit)
     .all<GameRow>();
-  const rows = results ?? [];
-  const builds = await listBuilds(db, rows.map((row) => row.id));
-  return rows.map((row) => toAdminGame(row, builds.get(row.id) ?? []));
+  return (results ?? []).map((row) => toAdminGame(row));
 }

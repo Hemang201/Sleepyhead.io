@@ -48,6 +48,12 @@ EMAIL_PROVIDER=local
 # EMAIL_FROM=Arcade <verify@example.com>
 # EMAIL_REPLY_TO=owner@example.com
 
+# 5. Uploaded images and audio. With no key set, `wrangler dev` keeps uploads in
+#    its own local bucket under .wrangler/state, so the whole suite runs without
+#    an account. Set a real Get Pronto SECRET key (pronto_sk_…) to exercise the
+#    real CDN locally — uploads then leave this machine.
+# GETPRONTO_API_KEY=pronto_sk_your_key_here
+
 # Local harness only: the password `npm run seed` and `npm run verify` use, and
 # the key the reset seam checks. Refused unless APP_ORIGIN is loopback.
 DEV_OWNER_SUB=dev-owner

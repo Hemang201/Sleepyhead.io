@@ -4,14 +4,12 @@ import reactHooks from 'eslint-plugin-react-hooks';
 
 export default tseslint.config(
   {
-    // fixtures/ holds game builds uploaded by the seed, dist*/ build output and
-    // .wrangler local state — none of it is project source.
+    // dist*/ build output and .wrangler local state are not project source.
     ignores: [
       'dist/**',
       'dist-worker/**',
       'node_modules/**',
       'public/**',
-      'fixtures/**',
       'scripts/**',
       '.wrangler/**',
       'verification/**',
