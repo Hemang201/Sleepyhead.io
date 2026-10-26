@@ -28,8 +28,8 @@
 	"d1_databases": [
 		{
 			"binding": "DB",
-			"database_name": "hg-arcade",
-			"database_id": "00000000-0000-0000-0000-000000000000",
+			"database_name": "sleepyhead-db",
+			"database_id": "0dbd22d8-9d65-411b-a11b-78fb1a648301 0",
 			"migrations_dir": "migrations"
 		}
 	],
